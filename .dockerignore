@@ -22,7 +22,7 @@ docker-compose*.yml
 Dockerfile
 .dockerignore
 .pytest_cache
-alembic.ini
+
 pytest.ini
 tailwind.config.js
 package.json
