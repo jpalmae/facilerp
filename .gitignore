@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+instance/
+
+# Backups
+backups/*.sql.gz
+
+# Node
+node_modules/
+
+# Tailwind output (regenerated on build)
+# Keep output.css in repo for Docker builds
+
+# Pytest
+.pytest_cache/
+
+# Logs
+*.log

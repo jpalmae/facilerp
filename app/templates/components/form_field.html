@@ -1,0 +1,256 @@
+{# ==============================================================================
+   Form Field Component Macros
+
+   Reusable Jinja2 macros for rendering WTForms fields with Tailwind CSS styling
+   consistent with the FacilERP design system.
+   ============================================================================== #}
+
+
+{# ------------------------------------------------------------------------------
+   macro: form_field
+   Renders a complete form field group (label + input + errors + help text).
+
+   Parameters:
+     field       — WTForms field object
+     class       — Additional CSS classes for the input element
+     placeholder — Placeholder text for the input
+     help_text   — Optional help text displayed below the field
+     rows        — Number of rows for TextAreaField (default: 4)
+   ------------------------------------------------------------------------------ #}
+{% macro form_field(field, class='', placeholder='', help_text='', rows='') %}
+
+{% set is_required = field.flags.required %}
+{% set has_errors = field.errors | length > 0 %}
+{% set field_id = field.id if field.id else field.name %}
+{% set described_by = '' %}
+
+{% if has_errors %}
+  {% set described_by = field_id ~ '-errors' %}
+{% elif help_text %}
+  {% set described_by = field_id ~ '-help' %}
+{% endif %}
+
+{# ── BooleanField: checkbox with label on the right ────────────────────── #}
+{% if field.type == 'BooleanField' %}
+<div class="flex items-start gap-3 mb-4">
+  <div class="flex h-5 items-center">
+    <input
+      type="checkbox"
+      id="{{ field_id }}"
+      name="{{ field.name }}"
+      value="y"
+      {% if field.data %}checked{% endif %}
+      {% if has_errors %}aria-invalid="true" aria-describedby="{{ described_by }}"{% endif %}
+      class="h-4 w-4 rounded border-slate-300 text-[color:var(--color-accent)] focus:ring-[color:var(--color-accent)] {{ 'border-rose-300' if has_errors else '' }} {{ class }}"
+    >
+  </div>
+  <div class="text-sm">
+    <label for="{{ field_id }}" class="font-medium text-slate-700 cursor-pointer">
+      {{ field.label.text }}
+      {% if is_required %}
+        <span class="text-rose-500" aria-hidden="true">*</span>
+      {% endif %}
+    </label>
+  </div>
+</div>
+
+{# ── Errors for BooleanField ── #}
+{% if has_errors %}
+<div id="{{ field_id }}-errors" class="mt-1.5 mb-4">
+  {% for error in field.errors %}
+  <p class="mt-1.5 text-xs font-medium text-rose-600 flex items-center gap-1.5">
+    <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+    </svg>
+    <span>{{ error }}</span>
+  </p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── All other field types ─────────────────────────────────────────────── #}
+{% else %}
+<div class="mb-4">
+  {# ── Label ── #}
+  <label
+    for="{{ field_id }}"
+    class="block text-sm font-semibold text-slate-700 mb-1.5"
+  >
+    {{ field.label.text }}
+    {% if is_required %}
+      <span class="text-rose-500" aria-hidden="true">*</span>
+    {% endif %}
+  </label>
+
+  {# ── SelectField ──────────────────────────────────────────────────── #}
+  {% if field.type == 'SelectField' %}
+  <select
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 placeholder:text-slate-400 {{ class }}"
+  >
+    {% if not is_required %}
+    <option value="">{{ placeholder or 'Seleccionar...' }}</option>
+    {% endif %}
+    {% for choice_val, choice_label in field.choices %}
+    <option
+      value="{{ choice_val }}"
+      {% if field.data is not none and field.data|string == choice_val|string %}selected{% endif %}
+    >{{ choice_label }}</option>
+    {% endfor %}
+  </select>
+
+  {# ── TextAreaField ───────────────────────────────────────────────── #}
+  {% elif field.type == 'TextAreaField' %}
+  <textarea
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    rows="{{ rows or 4 }}"
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 placeholder:text-slate-400 resize-y {{ class }}"
+  >{{ field.data or '' }}</textarea>
+
+  {# ── FileField ────────────────────────────────────────────────────── #}
+  {% elif field.type == 'FileField' %}
+  <input
+    type="file"
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    {% if field.accept is defined and field.accept %}accept="{{ field.accept }}"{% endif %}
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 {{ class }}"
+  >
+
+  {# ── DateField ────────────────────────────────────────────────────── #}
+  {% elif field.type == 'DateField' %}
+  <input
+    type="date"
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    value="{{ field.data or '' }}"
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 placeholder:text-slate-400 {{ class }}"
+  >
+
+  {# ── DecimalField / FloatField / IntegerField ─────────────────────── #}
+  {% elif field.type in ('DecimalField', 'FloatField', 'IntegerField') %}
+  <input
+    type="number"
+    {% if field.type == 'DecimalField' %}step="0.01"{% elif field.type == 'FloatField' %}step="any"{% else %}step="1"{% endif %}
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    value="{{ field.data or '' }}"
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 placeholder:text-slate-400 {{ class }}"
+  >
+
+  {# ── Default: standard text input ────────────────────────────────── #}
+  {% else %}
+  <input
+    type="{{ 'email' if field.type == 'EmailField' else 'password' if field.type == 'PasswordField' else 'text' }}"
+    id="{{ field_id }}"
+    name="{{ field.name }}"
+    value="{{ field.data or '' }}"
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if has_errors %}aria-invalid="true"{% endif %}
+    {% if described_by %}aria-describedby="{{ described_by }}"{% endif %}
+    {% if is_required %}required{% endif %}
+    class="w-full rounded-xl border {{ 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' if has_errors else 'border-slate-200 focus:border-[color:var(--color-accent-light)] focus:ring-[var(--bg-accent-soft)]' }} bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 placeholder:text-slate-400 {{ class }}"
+  >
+  {% endif %}
+
+  {# ── Inline errors ──────────────────────────────────────────────────── #}
+  {% if has_errors %}
+  <div id="{{ field_id }}-errors">
+    {% for error in field.errors %}
+    <p class="mt-1.5 text-xs font-medium text-rose-600 flex items-center gap-1.5">
+      <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+      </svg>
+      <span>{{ error }}</span>
+    </p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Help text ──────────────────────────────────────────────────────── #}
+  {% if help_text %}
+  <p id="{{ field_id }}-help" class="mt-1.5 text-xs text-slate-500">{{ help_text }}</p>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{% endmacro %}
+
+
+{# ------------------------------------------------------------------------------
+   macro: form_errors
+   Renders form-level (non-field) errors in a red alert box at the top.
+
+   Parameters:
+     form — WTForms form instance
+   ------------------------------------------------------------------------------ #}
+{% macro form_errors(form) %}
+{% if form.form_errors | length > 0 or (form.errors and form.errors.get('__all__', []) | length > 0) %}
+<div class="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4" role="alert">
+  <div class="flex items-start gap-3">
+    <svg class="h-5 w-5 shrink-0 text-rose-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+    </svg>
+    <div>
+      <h3 class="text-sm font-semibold text-rose-800">Se encontraron errores en el formulario</h3>
+      <ul class="mt-2 list-disc pl-4 space-y-1">
+        {% if form.form_errors %}
+          {% for error in form.form_errors %}
+          <li class="text-xs font-medium text-rose-600">{{ error }}</li>
+          {% endfor %}
+        {% endif %}
+        {% if form.errors and form.errors.get('__all__', []) %}
+          {% for error in form.errors['__all__'] %}
+          <li class="text-xs font-medium text-rose-600">{{ error }}</li>
+          {% endfor %}
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# ------------------------------------------------------------------------------
+   macro: form_submit
+   Renders a styled submit button.
+
+   Parameters:
+     text  — Button label text (default: 'Guardar')
+     tone  — Color tone: 'primary', 'danger', or 'secondary'
+   ------------------------------------------------------------------------------ #}
+{% macro form_submit(text='Guardar', tone='primary') %}
+{% set tone_classes = {
+  'primary':   'bg-slate-950 text-white hover:bg-slate-800',
+  'danger':    'bg-rose-600 text-white hover:bg-rose-700',
+  'secondary': 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+} %}
+<button
+  type="submit"
+  class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 {{ tone_classes.get(tone, tone_classes['primary']) }} {{ 'focus:ring-slate-900' if tone == 'primary' else 'focus:ring-rose-600' if tone == 'danger' else 'focus:ring-slate-400' }}"
+>
+  {{ text }}
+</button>
+{% endmacro %}

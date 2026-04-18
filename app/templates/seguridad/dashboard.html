@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge, status_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+{% from "components/modal.html" import confirm_dialog %}
+
+{% block title %}Seguridad · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Seguridad{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "usuarios" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Usuarios', 'blue') }}
+          {{ stat_badge(user_rows|length ~ ' accesos') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Usuarios</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a accesos, vigencias, grupos y alcance operativo por almacén.</p>
+      </article>
+
+      <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-[1.1fr_0.9fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Accesos asignados</h3>
+          <div class="mt-5 space-y-4">
+            {% for row in user_rows %}
+              {% set membership = row.membership %}
+              {% set user = row.user %}
+              <article class="rounded-[var(--radius-md)] border border-slate-200 bg-slate-50 p-5">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-3">
+                      <h4 class="text-xl font-extrabold tracking-tight text-slate-950">{{ user.nombre }}</h4>
+                      {{ status_badge('Activo' if membership.activo else 'Inactivo') }}
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ membership.rol_label }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500">{{ user.email }}</p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      {% if membership.expires_at %}
+                        {{ stat_badge('Vence ' ~ membership.expires_at.strftime('%d/%m/%Y'), 'amber') }}
+                      {% else %}
+                        {{ stat_badge('Sin vencimiento') }}
+                      {% endif %}
+                      {% for group in row.assigned_groups %}
+                        <span class="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">{{ group.nombre }}</span>
+                      {% else %}
+                        <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">Sin grupos</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  {% if can_manage_users %}
+                    <form id="toggle-user-{{ user.id }}-form" method="post" action="{{ url_for('seguridad.toggle_user_membership', user_id=user.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="button" x-on:click="$dispatch('open-confirm-toggle-user-{{ user.id }}')" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">{{ 'Desactivar' if membership.activo else 'Reactivar' }}</button>
+                    </form>
+                    {{ confirm_dialog(
+                      "toggle-user-" ~ user.id,
+                      title="¿" ~ ("Desactivar" if membership.activo else "Reactivar") ~ " este usuario?",
+                      message="El usuario " ~ ("perderá" if membership.activo else "recuperará") ~ " su acceso a la empresa.",
+                      confirm="Sí, " ~ ("desactivar" if membership.activo else "reactivar"),
+                      tone="danger" if membership.activo else "primary",
+                      form_id="toggle-user-" ~ user.id ~ "-form"
+                    ) }}
+                  {% endif %}
+                </div>
+
+                <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-white p-4">
+                    <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Rol</p>
+                    {% if can_manage_users %}
+                      <form method="post" action="{{ url_for('seguridad.update_user_role', user_id=user.id) }}" class="mt-4 flex gap-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="rol" class="w-full rounded-2xl border-slate-300 px-4 py-2 text-sm shadow-sm">
+                          {% for code, label in role_choices %}
+                            <option value="{{ code }}" {% if membership.rol == code %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                        <button type="submit" class="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Guardar</button>
+                      </form>
+                    {% else %}
+                      <p class="mt-4 text-sm font-semibold text-slate-900">{{ membership.rol_label }}</p>
+                    {% endif %}
+                  </div>
+                  <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-white p-4">
+                    <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Vigencia</p>
+                    {% if can_manage_users %}
+                      <form method="post" action="{{ url_for('seguridad.update_user_expiration', user_id=user.id) }}" class="mt-4 flex gap-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="date" name="expires_at" value="{{ membership.expires_at.date().isoformat() if membership.expires_at else '' }}" class="w-full rounded-2xl border-slate-300 px-4 py-2 text-sm shadow-sm">
+                        <button type="submit" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Guardar</button>
+                      </form>
+                    {% else %}
+                      <p class="mt-4 text-sm font-semibold text-slate-900">{{ membership.expires_at.strftime('%d/%m/%Y') if membership.expires_at else 'Sin vencimiento' }}</p>
+                    {% endif %}
+                  </div>
+                  <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-white p-4">
+                    <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Permisos</p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      {% for permission in row.effective_permissions %}
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ permission.label }}</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            {% else %}
+              <div class="rounded-[var(--radius-md)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Todavía no hay usuarios asignados a la empresa activa.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_manage_users %}
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Agregar usuario</h3>
+            <form method="post" class="mt-6 space-y-4">
+              {{ user_form.hidden_tag() }}
+              {{ form_field(user_form.nombre) }}
+              {{ form_field(user_form.email) }}
+              {{ form_field(user_form.password) }}
+              {{ form_field(user_form.rol) }}
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+    {% elif active_submodule == "roles" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Roles y grupos', 'blue') }}
+          {{ stat_badge(group_rows|length ~ ' grupos') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Roles</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a grupos, permisos y estructura de acceso por empresa.</p>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Grupos activos</h3>
+          <div class="mt-5 space-y-4">
+            {% for row in group_rows %}
+              {% set group = row.group %}
+              <article class="rounded-[var(--radius-md)] border border-slate-200 bg-slate-50 p-5">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-3">
+                      <h4 class="text-xl font-extrabold tracking-tight text-slate-950">{{ group.nombre }}</h4>
+                      {{ status_badge('Activo' if group.activo else 'Inactivo') }}
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ row.member_count }} usuario(s)</span>
+                    </div>
+                    {% if group.descripcion %}
+                      <p class="mt-2 text-sm text-slate-600">{{ group.descripcion }}</p>
+                    {% endif %}
+                  </div>
+                  {% if can_manage_groups %}
+                    <form id="toggle-group-{{ group.id }}-form" method="post" action="{{ url_for('seguridad.toggle_group', group_id=group.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="button" x-on:click="$dispatch('open-confirm-toggle-group-{{ group.id }}')" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">{{ 'Desactivar' if group.activo else 'Reactivar' }}</button>
+                    </form>
+                    {{ confirm_dialog(
+                      "toggle-group-" ~ group.id,
+                      title="¿" ~ ("Desactivar" if group.activo else "Reactivar") ~ " este grupo?",
+                      message="El grupo " ~ ("perderá" if group.activo else "recuperará") ~ " sus permisos activos.",
+                      confirm="Sí, " ~ ("desactivar" if group.activo else "reactivar"),
+                      tone="danger" if group.activo else "primary",
+                      form_id="toggle-group-" ~ group.id ~ "-form"
+                    ) }}
+                  {% endif %}
+                </div>
+                {% if can_manage_groups %}
+                  <form method="post" action="{{ url_for('seguridad.update_group', group_id=group.id) }}" class="mt-4 space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="grid gap-4 md:grid-cols-2">
+                      <div><label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label><input type="text" name="nombre" value="{{ group.nombre }}" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm"></div>
+                      <div><label class="mb-2 block text-sm font-medium text-slate-700">Descripción</label><input type="text" name="descripcion" value="{{ group.descripcion or '' }}" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm"></div>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      {% for catalog in permission_catalog %}
+                        {% for permission in catalog.permissions %}
+                          <label class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            <input type="checkbox" name="permission_codes" value="{{ permission.code }}" class="rounded border-slate-300" {% if permission.code in row.permission_codes %}checked{% endif %}>
+                            <span>{{ permission.label }}</span>
+                          </label>
+                        {% endfor %}
+                      {% endfor %}
+                    </div>
+                    <button type="submit" class="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Guardar grupo</button>
+                  </form>
+                {% else %}
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    {% for permission in row.permission_labels %}
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ permission }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </article>
+            {% else %}
+              <div class="rounded-[var(--radius-md)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Todavía no hay grupos creados.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_manage_groups %}
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Crear grupo</h3>
+            <form method="post" class="mt-6 space-y-4">
+              {{ group_form.hidden_tag() }}
+              {{ form_field(group_form.nombre) }}
+              {{ form_field(group_form.descripcion) }}
+              <div>
+                <p class="mb-2 block text-sm font-medium text-slate-700">Permisos</p>
+                <div class="grid gap-2">
+                  {% for code, label in group_form.permisos.choices %}
+                    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                      <input type="checkbox" name="{{ group_form.permisos.name }}" value="{{ code }}" class="rounded border-slate-300">
+                      <span>{{ label }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+              </div>
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+    {% elif active_submodule == "empresas" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Empresas', 'blue') }}
+          {{ stat_badge(company_rows|length ~ ' vinculadas') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Empresas</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Crea nuevas razones sociales, ajusta sus datos base, cambia de empresa y define cuál debe abrir por defecto al iniciar sesión.</p>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Portafolio multiempresa</h3>
+          <div class="mt-5 space-y-4">
+            {% for row in company_rows %}
+              {% set empresa = row.empresa %}
+              {% set membership = row.membership %}
+              <article class="rounded-[var(--radius-md)] border border-slate-200 bg-slate-50 p-5">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-3">
+                      <h4 class="text-xl font-extrabold tracking-tight text-slate-950">{{ empresa.razon_social }}</h4>
+                      {{ status_badge('Activa' if empresa.activa else 'Inactiva') }}
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ membership.rol_label }}</span>
+                      {% if row.is_current %}
+                        {{ stat_badge('En uso', 'blue') }}
+                      {% endif %}
+                      {% if row.is_default %}
+                        {{ stat_badge('Predeterminada', 'green') }}
+                      {% endif %}
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500">RUC {{ empresa.ruc }} · {{ empresa.moneda }} · {{ empresa.regimen_tributario }}</p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ row.user_count }} usuario(s)</span>
+                      <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ row.group_count }} grupo(s)</span>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    {% if not row.is_current %}
+                      <form method="post" action="{{ url_for('core.switch_company') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="empresa_id" value="{{ empresa.id }}">
+                        <input type="hidden" name="next" value="{{ url_for('seguridad.companies') }}">
+                        <button type="submit" class="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Entrar</button>
+                      </form>
+                    {% endif %}
+                    {% if not row.is_default %}
+                      <form method="post" action="{{ url_for('seguridad.set_default_company', company_id=empresa.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Predeterminada</button>
+                      </form>
+                    {% endif %}
+                    <form id="toggle-company-{{ empresa.id }}-form" method="post" action="{{ url_for('seguridad.toggle_company', company_id=empresa.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="button" x-on:click="$dispatch('open-confirm-toggle-company-{{ empresa.id }}')" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">{{ 'Desactivar' if empresa.activa else 'Reactivar' }}</button>
+                    </form>
+                    {{ confirm_dialog(
+                      "toggle-company-" ~ empresa.id,
+                      title="¿" ~ ("Desactivar" if empresa.activa else "Reactivar") ~ " esta empresa?",
+                      message="La empresa " ~ ("perderá" if empresa.activa else "recuperará") ~ " su acceso operativo.",
+                      confirm="Sí, " ~ ("desactivar" if empresa.activa else "reactivar"),
+                      tone="danger" if empresa.activa else "primary",
+                      form_id="toggle-company-" ~ empresa.id ~ "-form"
+                    ) }}
+                  </div>
+                </div>
+
+                <form method="post" action="{{ url_for('seguridad.update_company', company_id=empresa.id) }}" class="mt-4 grid gap-4 md:grid-cols-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Razón social</label>
+                    <input type="text" name="razon_social" value="{{ empresa.razon_social }}" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm">
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">RUC</label>
+                    <input type="text" name="ruc" value="{{ empresa.ruc }}" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm">
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Moneda</label>
+                    <select name="moneda" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm">
+                      <option value="PEN" {% if empresa.moneda == 'PEN' %}selected{% endif %}>PEN</option>
+                      <option value="USD" {% if empresa.moneda == 'USD' %}selected{% endif %}>USD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Régimen tributario</label>
+                    <input type="text" name="regimen_tributario" value="{{ empresa.regimen_tributario }}" class="w-full rounded-2xl border-slate-300 px-4 py-3 shadow-sm">
+                  </div>
+                  <div class="md:col-span-2">
+                    <button type="submit" class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">Guardar datos</button>
+                  </div>
+                </form>
+              </article>
+            {% else %}
+              <div class="rounded-[var(--radius-md)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Todavía no tienes empresas vinculadas.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_manage_users %}
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Crear empresa</h3>
+            <p class="mt-2 text-sm leading-7 text-slate-600">La nueva empresa quedará vinculada a tu usuario como administrador para que puedas cambiarte a ella de inmediato.</p>
+            <form method="post" class="mt-6 space-y-4">
+              {{ company_form.hidden_tag() }}
+              {{ form_field(company_form.ruc) }}
+              {{ form_field(company_form.razon_social) }}
+              {{ form_field(company_form.moneda) }}
+              {{ form_field(company_form.regimen_tributario) }}
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

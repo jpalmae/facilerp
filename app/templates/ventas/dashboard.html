@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge, status_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+
+{% block title %}Ventas · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Ventas{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "facturacion" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-3">
+              {{ stat_badge('Facturación activa', 'blue') }}
+              {{ stat_badge(document_cards|length ~ ' documentos') }}
+            </div>
+            <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Facturación</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Vista enfocada en documentos, vencimientos y emisión de nuevas ventas.</p>
+          </div>
+          {% if can_write %}
+            <a href="#nueva-factura" class="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Nueva venta</a>
+          {% endif %}
+        </div>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Ventas YTD</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(sales_ytd) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Ingresos visibles del año.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-rose-200 bg-rose-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-rose-700">Vencidas</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-rose-950">{{ overdue_count }}</p>
+          <p class="mt-2 text-sm text-rose-800">Facturas fuera de plazo.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Pendiente</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(pending_amount) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Saldo por cobrar.</p>
+        </article>
+      </div>
+
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Libro de facturas</h3>
+            <p class="mt-1 text-sm text-slate-500">Actividad comercial y estado de cobranza.</p>
+          </div>
+          <form method="get" class="flex flex-wrap gap-3">
+            <input type="search" name="q" value="{{ search_query }}" placeholder="Buscar facturas o clientes..." class="rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+            <select name="status" class="rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+              <option value="todos" {% if selected_status == 'todos' %}selected{% endif %}>Todos</option>
+              <option value="Pagada" {% if selected_status == 'Pagada' %}selected{% endif %}>Pagada</option>
+              <option value="Pendiente" {% if selected_status == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+              <option value="Parcial" {% if selected_status == 'Parcial' %}selected{% endif %}>Parcial</option>
+              <option value="Vencida" {% if selected_status == 'Vencida' %}selected{% endif %}>Vencida</option>
+            </select>
+            <button type="submit" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm">Filtrar</button>
+          </form>
+        </div>
+
+        <div class="mt-6 overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              <tr>
+                <th class="pb-4 pr-4">Documento</th>
+                <th class="pb-4 pr-4">Cliente</th>
+                <th class="pb-4 pr-4">Emisión</th>
+                <th class="pb-4 pr-4">Vencimiento</th>
+                <th class="pb-4 pr-4">Total</th>
+                <th class="pb-4">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for item in document_cards %}
+                {% set pedido = item.pedido %}
+                {% set documento = item.documento %}
+                <tr>
+                  <td class="py-5 pr-4 font-semibold text-slate-700">FV-{{ "%04d"|format(pedido.id) }}</td>
+                  <td class="py-5 pr-4">
+                    <p class="font-semibold text-slate-950">{{ pedido.cliente.razon_social }}</p>
+                    <p class="text-xs text-slate-400">{{ pedido.almacen.nombre }}</p>
+                  </td>
+                  <td class="py-5 pr-4 text-slate-600">{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
+                  <td class="py-5 pr-4 text-slate-600">{{ documento.fecha_vencimiento.strftime('%d/%m/%Y') if documento else '—' }}</td>
+                  <td class="py-5 pr-4 font-semibold text-slate-900">S/ {{ "%.2f"|format(pedido.total) }}</td>
+                  <td class="py-5">{{ status_badge(item.status) }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="6" class="py-10 text-center text-sm text-slate-500">No hay documentos que coincidan con los filtros activos.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {% if can_write %}
+        <article id="nueva-factura" class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 class="text-xl font-extrabold tracking-tight text-slate-950">Registrar venta</h3>
+          <form method="post" class="mt-5 space-y-4">
+            {{ order_form.hidden_tag() }}
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>{{ form_field(order_form.cliente_id) }}</div>
+              <div>{{ form_field(order_form.producto_id) }}</div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-3">
+              <div>{{ form_field(order_form.almacen_id) }}</div>
+              <div>{{ form_field(order_form.fecha) }}</div>
+              <div>{{ form_field(order_form.cantidad) }}</div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>{{ form_field(order_form.precio_unitario) }}</div>
+              <div>{{ form_field(order_form.observaciones) }}</div>
+            </div>
+            {{ form_submit("Guardar") }}
+          </form>
+        </article>
+      {% endif %}
+
+    {% elif active_submodule == "clientes" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-3">
+              {{ stat_badge('Base comercial', 'blue') }}
+              {{ stat_badge(clientes|length ~ ' clientes') }}
+            </div>
+            <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Clientes</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada al maestro de clientes y condiciones de pago.</p>
+          </div>
+        </div>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Clientes activos</h3>
+          <div class="mt-5 space-y-3">
+            {% for cliente in clientes %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p class="font-semibold text-slate-900">{{ cliente.razon_social }}</p>
+                <p class="mt-1 text-sm text-slate-500">{{ cliente.documento }} · {{ cliente.condicion_pago|capitalize }}</p>
+              </div>
+            {% else %}
+              <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Todavía no hay clientes registrados.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_write %}
+          <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-xl font-extrabold tracking-tight text-slate-950">Crear cliente</h3>
+            <form method="post" class="mt-5 space-y-4">
+              {{ client_form.hidden_tag() }}
+              <div>{{ form_field(client_form.documento) }}</div>
+              <div>{{ form_field(client_form.razon_social) }}</div>
+              <div>{{ form_field(client_form.condicion_pago) }}</div>
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+
+    {% elif active_submodule == "creditos" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Ajustes comerciales', 'amber') }}
+          {{ stat_badge('Preparado para crecer') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Notas de crédito</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Se reservó una pantalla propia para devoluciones y ajustes por documento. La capa contable y comercial ya no queda mezclada con facturación general.</p>
+      </article>
+
+      <article class="rounded-[var(--radius-lg)] border border-dashed border-slate-200 bg-white p-8 shadow-soft">
+        <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Espacio dedicado</h3>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Aquí irá el flujo específico de notas de crédito. Por ahora puedes revisar los documentos cobrables activos desde Facturación.</p>
+        <div class="mt-6">
+          <a href="{{ url_for('ventas.invoices') }}" class="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Ir a facturación</a>
+        </div>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}

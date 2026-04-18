@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge %}
+
+{% block title %}Reportes · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Reportes{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "ventas" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Comercial', 'blue') }}
+          {{ stat_badge('Aging y liquidez') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Reportes de ventas</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Vista dedicada a cartera comercial, vencimientos y señales de cobranza.</p>
+      </article>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Aging CxC</h3>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            {% for key, label in [('current', 'Al día'), ('1_30', '1-30 días'), ('31_60', '31-60 días'), ('61_90', '61-90 días'), ('90_plus', '90+ días')] %}
+              <div class="rounded-[var(--radius-sm)] bg-slate-50 px-4 py-4">
+                <p class="text-sm text-slate-500">{{ label }}</p>
+                <p class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(aging.cxc[key]) }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Flujo comercial</h3>
+          <div class="mt-5 space-y-3">
+            <div class="rounded-[var(--radius-sm)] bg-emerald-50 px-4 py-4">
+              <p class="text-sm text-emerald-700">Entradas</p>
+              <p class="mt-1 text-2xl font-extrabold tracking-tight text-emerald-950">S/ {{ "%.2f"|format(cash_flow.ingresos) }}</p>
+            </div>
+            <div class="rounded-[var(--radius-sm)] bg-rose-50 px-4 py-4">
+              <p class="text-sm text-rose-700">Salidas</p>
+              <p class="mt-1 text-2xl font-extrabold tracking-tight text-rose-950">S/ {{ "%.2f"|format(cash_flow.egresos) }}</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    {% elif active_submodule == "inventario" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Operación', 'blue') }}
+          {{ stat_badge('Liquidez y stock') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Reportes de inventario</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Vista enfocada en aging, liquidez y señales de operación que afectan inventario.</p>
+      </article>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">CxP por tramo</h3>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            {% for key, label in [('current', 'Al día'), ('1_30', '1-30 días'), ('31_60', '31-60 días'), ('61_90', '61-90 días'), ('90_plus', '90+ días')] %}
+              <div class="rounded-[var(--radius-sm)] bg-slate-50 px-4 py-4">
+                <p class="text-sm text-slate-500">{{ label }}</p>
+                <p class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(aging.cxp[key]) }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Liquidez neta</h3>
+          <p class="mt-5 text-4xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(cash_flow.neto) }}</p>
+          <p class="mt-3 text-sm text-slate-600">Indicador de caja neta para la operación.</p>
+        </article>
+      </div>
+    {% elif active_submodule == "financieros" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Financiero', 'blue') }}
+          {{ stat_badge('Exportable') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Reportes financieros</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Estados financieros y balance general.</p>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Ingresos</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(snapshot.resultados.ingresos) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Snapshot actual.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Gastos</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(snapshot.resultados.gastos) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Snapshot actual.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Resultado</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(snapshot.resultados.utilidad) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Snapshot actual.</p>
+        </article>
+      </div>
+
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Exportaciones</h3>
+            <p class="mt-1 text-sm text-slate-500">Salidas oficiales disponibles desde el módulo.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a href="{{ url_for('reportes.export_excel') }}" class="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700">Excel</a>
+            <a href="{{ url_for('reportes.export_pdf') }}" class="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700">PDF</a>
+            <a href="{{ url_for('reportes.export_ple') }}" class="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">PLE</a>
+          </div>
+        </div>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}

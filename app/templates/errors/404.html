@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}404 · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Página no encontrada{% endblock %}
+{% block content %}
+  <section class="flex flex-col items-center justify-center py-16 text-center">
+    <div class="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-50">
+      <svg class="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+      </svg>
+    </div>
+    <p class="text-xs uppercase tracking-[0.28em] text-blue-500 font-semibold">Error 404</p>
+    <h2 class="mt-2 font-display text-3xl font-semibold text-slate-950">La página que buscas no existe</h2>
+    <p class="mt-3 max-w-lg text-slate-600">Es posible que la ruta haya cambiado o el recurso haya sido eliminado. Usa la navegación para volver a una sección válida.</p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <a href="{{ url_for('core.dashboard') }}" class="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:opacity-90">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+        Ir al panel principal
+      </a>
+      <button onclick="history.back()" class="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+        Volver atrás
+      </button>
+    </div>
+  </section>
+{% endblock %}

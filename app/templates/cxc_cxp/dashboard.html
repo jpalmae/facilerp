@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge, status_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+
+{% block title %}CxC / CxP · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}CxC / CxP{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "cobros" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Cobranza', 'blue') }}
+          {{ stat_badge(cxc_cards|length ~ ' documentos') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Cobros</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a documentos por cobrar y registro de ingresos.</p>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Documentos CxC</h3>
+          <div class="mt-5 space-y-3">
+            {% for item in cxc_cards %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="font-semibold text-slate-900">{{ item.documento.cliente.razon_social }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Vence {{ item.documento.fecha_vencimiento.strftime('%d/%m/%Y') }}</p>
+                  </div>
+                  {{ status_badge(item.status) }}
+                </div>
+                <p class="mt-3 text-sm text-slate-600">Pendiente S/ {{ "%.2f"|format(item.documento.monto_pendiente) }}</p>
+              </div>
+            {% else %}
+              <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Sin documentos por cobrar.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <div class="space-y-7">
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Cobros recientes</h3>
+            <div class="mt-5 space-y-3">
+              {% for cobro in cobros %}
+                <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p class="font-semibold text-slate-900">{{ cobro.documento.cliente.razon_social }}</p>
+                  <p class="mt-1 text-sm text-slate-500">{{ cobro.tipo_pago|capitalize }} · {{ cobro.fecha.strftime('%d/%m/%Y') }}</p>
+                  <p class="mt-3 font-semibold text-emerald-700">S/ {{ "%.2f"|format(cobro.monto) }}</p>
+                </div>
+              {% else %}
+                <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Aún no hay cobros registrados.</div>
+              {% endfor %}
+            </div>
+          </article>
+
+          {% if can_write %}
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Registrar cobro</h3>
+              <form method="post" class="mt-6 space-y-4">
+                {{ form.hidden_tag() }}
+                {{ form_field(form.documento_id) }}
+                {{ form_field(form.cuenta_tesoreria_id) }}
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(form.fecha) }}
+                  {{ form_field(form.monto) }}
+                </div>
+                {{ form_field(form.tipo_pago) }}
+                {{ form_submit("Guardar") }}
+              </form>
+            </article>
+          {% endif %}
+        </div>
+      </div>
+
+    {% elif active_submodule == "pagos" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Egresos', 'amber') }}
+          {{ stat_badge(cxp_cards|length ~ ' documentos') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Pagos</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a obligaciones con proveedores y ejecución de pagos.</p>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Documentos CxP</h3>
+          <div class="mt-5 space-y-3">
+            {% for item in cxp_cards %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="font-semibold text-slate-900">{{ item.documento.proveedor.razon_social }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Vence {{ item.documento.fecha_vencimiento.strftime('%d/%m/%Y') }}</p>
+                  </div>
+                  {{ status_badge(item.status) }}
+                </div>
+                <p class="mt-3 text-sm text-slate-600">Pendiente S/ {{ "%.2f"|format(item.documento.monto_pendiente) }}</p>
+              </div>
+            {% else %}
+              <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Sin documentos por pagar.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <div class="space-y-7">
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Pagos recientes</h3>
+            <div class="mt-5 space-y-3">
+              {% for pago in pagos %}
+                <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p class="font-semibold text-slate-900">{{ pago.documento.proveedor.razon_social }}</p>
+                  <p class="mt-1 text-sm text-slate-500">{{ pago.tipo_pago|capitalize }} · {{ pago.fecha.strftime('%d/%m/%Y') }}</p>
+                  <p class="mt-3 font-semibold text-rose-700">S/ {{ "%.2f"|format(pago.monto) }}</p>
+                </div>
+              {% else %}
+                <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Aún no hay pagos registrados.</div>
+              {% endfor %}
+            </div>
+          </article>
+
+          {% if can_write %}
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Registrar pago</h3>
+              <form method="post" class="mt-6 space-y-4">
+                {{ payment_form.hidden_tag() }}
+                {{ form_field(payment_form.documento_id) }}
+                {{ form_field(payment_form.cuenta_tesoreria_id) }}
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(payment_form.fecha) }}
+                  {{ form_field(payment_form.monto) }}
+                </div>
+                {{ form_field(payment_form.tipo_pago) }}
+                {{ form_submit("Guardar") }}
+              </form>
+            </article>
+          {% endif %}
+        </div>
+      </div>
+
+    {% elif active_submodule == "aging" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Análisis de cartera', 'blue') }}
+          {{ stat_badge('0-30 / 31-60 / +90') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Antigüedad de cartera</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Vista analítica separada para aging y posición neta de liquidez.</p>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-emerald-700">Inflow</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-emerald-950">S/ {{ "%.2f"|format(cash_flow.ingresos) }}</p>
+          <p class="mt-2 text-sm text-emerald-800">Entradas acumuladas.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-rose-200 bg-rose-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-rose-700">Outflow</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-rose-950">S/ {{ "%.2f"|format(cash_flow.egresos) }}</p>
+          <p class="mt-2 text-sm text-rose-800">Salidas acumuladas.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Posición neta</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(aging.neto) }}</p>
+          <p class="mt-2 text-sm text-slate-600">CxC menos CxP pendientes.</p>
+        </article>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">CxC por tramo</h3>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            {% for key, label in [('current', 'Al día'), ('1_30', '1-30 días'), ('31_60', '31-60 días'), ('61_90', '61-90 días'), ('90_plus', '90+ días')] %}
+              <div class="rounded-[var(--radius-sm)] bg-slate-50 px-4 py-4">
+                <p class="text-sm text-slate-500">{{ label }}</p>
+                <p class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(aging.cxc[key]) }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">CxP por tramo</h3>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            {% for key, label in [('current', 'Al día'), ('1_30', '1-30 días'), ('31_60', '31-60 días'), ('61_90', '61-90 días'), ('90_plus', '90+ días')] %}
+              <div class="rounded-[var(--radius-sm)] bg-slate-50 px-4 py-4">
+                <p class="text-sm text-slate-500">{{ label }}</p>
+                <p class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(aging.cxp[key]) }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

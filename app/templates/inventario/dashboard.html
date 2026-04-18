@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge, status_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+{% from "components/empty_state.html" import empty_state %}
+
+{% block title %}Inventario · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Inventario{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "productos" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-3">
+              {{ stat_badge('Inventario activo', 'blue') }}
+              {{ stat_badge(product_summaries|length ~ ' SKUs') }}
+            </div>
+            <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Productos</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a catálogo, disponibilidad y creación de productos.</p>
+          </div>
+          {% if can_write %}
+            <a href="#crear-producto" class="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Crear producto</a>
+          {% endif %}
+        </div>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-400">Productos</p>
+          <p class="mt-2 text-[2rem] font-extrabold tracking-tight text-slate-950">{{ product_summaries|length }}</p>
+          <p class="mt-2 text-sm text-slate-500">Catálogo visible.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-sky-200 bg-sky-50 p-5 shadow-sm">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-sky-700">Stock bajo</p>
+          <p class="mt-2 text-[2rem] font-extrabold tracking-tight text-sky-900">{{ low_stock_count }}</p>
+          <p class="mt-2 text-sm text-sky-800">Reposición sugerida.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-rose-200 bg-rose-50 p-5 shadow-sm">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-rose-700">Agotados</p>
+          <p class="mt-2 text-[2rem] font-extrabold tracking-tight text-rose-900">{{ depleted_count }}</p>
+          <p class="mt-2 text-sm text-rose-800">Sin stock disponible.</p>
+        </article>
+      </div>
+
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-5 shadow-sm">
+        <form method="get" class="grid gap-3 md:grid-cols-[1.2fr,220px,220px,180px] xl:max-w-4xl">
+          <input type="search" name="q" value="{{ search_query }}" placeholder="Buscar SKU, nombre o almacén..." class="w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+          <select name="warehouse" class="rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+            <option value="">Todos los almacenes</option>
+            {% for almacen in almacenes %}
+              <option value="{{ almacen.id }}" {% if almacen.id == selected_warehouse_id %}selected{% endif %}>{{ almacen.nombre }}</option>
+            {% endfor %}
+          </select>
+          <select name="status" class="rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+            <option value="todos" {% if selected_status == 'todos' %}selected{% endif %}>Todos los estados</option>
+            <option value="Óptimo" {% if selected_status == 'Óptimo' %}selected{% endif %}>Óptimo</option>
+            <option value="Bajo" {% if selected_status == 'Bajo' %}selected{% endif %}>Bajo</option>
+            <option value="Agotado" {% if selected_status == 'Agotado' %}selected{% endif %}>Agotado</option>
+          </select>
+          <button type="submit" class="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Aplicar</button>
+        </form>
+      </article>
+
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              <tr>
+                <th class="pb-4 pr-4">SKU</th>
+                <th class="pb-4 pr-4">Producto</th>
+                <th class="pb-4 pr-4">Categoría</th>
+                <th class="pb-4 pr-4">Disponible</th>
+                <th class="pb-4 pr-4">Precio</th>
+                <th class="pb-4">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for item in product_summaries %}
+                <tr>
+                  <td class="py-5 pr-4 font-semibold text-slate-700">{{ item.producto.codigo }}</td>
+                  <td class="py-5 pr-4">
+                    <p class="font-semibold text-slate-950">{{ item.producto.nombre }}</p>
+                    <p class="text-xs text-slate-400">{{ item.almacenes|join(', ') if item.almacenes else 'Sin ubicación' }}</p>
+                  </td>
+                  <td class="py-5 pr-4 text-slate-600">{{ item.producto.categoria or 'General' }}</td>
+                  <td class="py-5 pr-4 font-semibold text-slate-900">{{ "%.0f"|format(item.disponible) }}</td>
+                  <td class="py-5 pr-4 text-slate-600">S/ {{ "%.2f"|format(item.producto.precio_venta) }}</td>
+                  <td class="py-5">{{ status_badge(item.status) }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5" class="py-2">
+                  {{ empty_state(
+                    title="Sin productos",
+                    description="Aún no hay productos registrados en este almacén.",
+                    icon="box",
+                    action_text="Registrar producto",
+                    action_url=url_for('inventario.workspace', form_type='product')
+                  ) }}
+                </td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {% if can_write %}
+        <article id="crear-producto" class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 class="text-xl font-extrabold tracking-tight text-slate-950">Crear producto</h3>
+          <form method="post" class="mt-5 space-y-4">
+            {{ product_form.hidden_tag() }}
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>{{ form_field(product_form.codigo) }}</div>
+              <div>{{ form_field(product_form.nombre) }}</div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-3">
+              <div>{{ form_field(product_form.categoria) }}</div>
+              <div>{{ form_field(product_form.precio_venta) }}</div>
+              <div>{{ form_field(product_form.stock_minimo) }}</div>
+            </div>
+            {{ form_submit("Guardar") }}
+          </form>
+        </article>
+      {% endif %}
+
+    {% elif active_submodule == "almacenes" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-3">
+              {{ stat_badge('Cobertura física', 'blue') }}
+              {{ stat_badge(almacenes|length ~ ' almacenes') }}
+            </div>
+            <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Almacenes</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Vista dedicada a ubicaciones operativas y su administración.</p>
+          </div>
+        </div>
+      </article>
+
+      <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-[1.1fr_0.9fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Ubicaciones disponibles</h3>
+          <div class="mt-5 space-y-3">
+            {% for item in almacenes %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p class="font-semibold text-slate-900">{{ item.nombre }}</p>
+                <p class="mt-1 text-sm text-slate-500">{{ item.ubicacion or 'Ubicación no informada' }}</p>
+              </div>
+            {% else %}
+              {{ empty_state(
+                title="Sin almacenes",
+                description="Crea un almacén para empezar a gestionar el inventario.",
+                icon="box"
+              ) }}
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_write %}
+          <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-xl font-extrabold tracking-tight text-slate-950">Crear almacén</h3>
+            <form method="post" class="mt-5 space-y-4">
+              {{ warehouse_form.hidden_tag() }}
+              <div>{{ form_field(warehouse_form.nombre) }}</div>
+              <div>{{ form_field(warehouse_form.ubicacion) }}</div>
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+
+    {% elif active_submodule == "movimientos" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-3">
+              {{ stat_badge('Trazabilidad', 'blue') }}
+              {{ stat_badge(movimientos|length ~ ' registros') }}
+            </div>
+            <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Movimientos</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Entradas y salidas en una vista dedicada, sin mezclar catálogo ni almacenes.</p>
+          </div>
+        </div>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Actividad reciente</h3>
+          <div class="mt-5 space-y-3">
+            {% for movimiento, producto, almacen in movimientos %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="font-semibold text-slate-900">{{ producto.nombre }}</p>
+                    <p class="mt-1 text-sm text-slate-500">{{ almacen.nombre }} · {{ movimiento.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+                  </div>
+                  {{ status_badge(movimiento.tipo|capitalize) }}
+                </div>
+                <p class="mt-3 text-sm text-slate-600">Cantidad: {{ "%.2f"|format(movimiento.cantidad) }}</p>
+              </div>
+            {% else %}
+              {{ empty_state(
+                title="Sin movimientos",
+                description="No se han registrado movimientos de stock.",
+                icon="inbox"
+              ) }}
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_write %}
+          <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-xl font-extrabold tracking-tight text-slate-950">Registrar movimiento</h3>
+            <form method="post" class="mt-5 space-y-4">
+              {{ movement_form.hidden_tag() }}
+              <div>{{ form_field(movement_form.producto_id) }}</div>
+              <div>{{ form_field(movement_form.almacen_id) }}</div>
+              <div class="grid gap-4 md:grid-cols-3">
+                <div>{{ form_field(movement_form.tipo) }}</div>
+                <div>{{ form_field(movement_form.cantidad) }}</div>
+                <div>{{ form_field(movement_form.costo_unitario) }}</div>
+              </div>
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

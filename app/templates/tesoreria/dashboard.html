@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge, status_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+{% from "components/modal.html" import confirm_dialog %}
+
+{% block title %}Tesorería · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}Tesorería{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    {% if active_submodule == "cuentas" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Caja y bancos', 'blue') }}
+          {{ stat_badge(accounts|length ~ ' cuentas') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Cajas y bancos</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a cuentas de tesorería, movimientos manuales y transferencias.</p>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Saldo</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(treasury_balance) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Saldo agregado visible.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-emerald-700">Inflow</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-emerald-950">S/ {{ "%.2f"|format(cash_flow.ingresos) }}</p>
+          <p class="mt-2 text-sm text-emerald-800">Entradas registradas.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-rose-200 bg-rose-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-rose-700">Outflow</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-rose-950">S/ {{ "%.2f"|format(cash_flow.egresos) }}</p>
+          <p class="mt-2 text-sm text-rose-800">Salidas registradas.</p>
+        </article>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Cuentas visibles</h3>
+          <div class="mt-5 space-y-3">
+            {% for item in accounts %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="font-semibold text-slate-900">{{ item.nombre }}</p>
+                    <p class="mt-1 text-sm text-slate-500">{{ item.tipo|capitalize }} · {{ item.moneda }} · {{ item.banco or 'Sin banco' }}</p>
+                  </div>
+                  {{ stat_badge(item.tipo|capitalize, 'blue') }}
+                </div>
+                <p class="mt-4 text-2xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(item.saldo_actual) }}</p>
+              </div>
+            {% else %}
+              <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Todavía no hay cuentas de tesorería.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if can_write %}
+          <div class="space-y-7">
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Nueva cuenta</h3>
+              <form method="post" class="mt-6 space-y-4">
+                {{ account_form.hidden_tag() }}
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(account_form.tipo) }}
+                  {{ form_field(account_form.moneda) }}
+                </div>
+                {{ form_field(account_form.nombre) }}
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(account_form.banco) }}
+                  {{ form_field(account_form.numero_cuenta) }}
+                </div>
+                {{ form_field(account_form.cuenta_contable_codigo) }}
+                {{ form_submit("Guardar") }}
+              </form>
+            </article>
+
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Transferencia entre cuentas</h3>
+              <form id="transfer-form" method="post" class="mt-6 space-y-4">
+                {{ transfer_form.hidden_tag() }}
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(transfer_form.cuenta_origen_id) }}
+                  {{ form_field(transfer_form.cuenta_destino_id) }}
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                  {{ form_field(transfer_form.fecha) }}
+                  {{ form_field(transfer_form.monto) }}
+                </div>
+                {{ form_submit("Transferir", tone="danger") }}
+              </form>
+              {{ confirm_dialog(
+                "transfer",
+                title="¿Confirmar transferencia?",
+                message="Se moverán fondos entre las cuentas seleccionadas.",
+                confirm="Sí, transferir",
+                tone="danger",
+                form_id="transfer-form"
+              ) }}
+            </article>
+          </div>
+        {% endif %}
+      </div>
+
+    {% elif active_submodule == "conciliacion" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Conciliación', 'blue') }}
+          {{ stat_badge(reconciled_count ~ ' conciliados') }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Conciliación</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla dedicada a actividad reciente, conciliación bancaria y tipo de cambio.</p>
+      </article>
+
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Movimientos recientes</h3>
+          <div class="mt-5 space-y-3">
+            {% for item in movements %}
+              <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="font-semibold text-slate-900">{{ item.glosa }}</p>
+                    <p class="mt-1 text-sm text-slate-500">{{ item.cuenta.nombre }} · {{ item.fecha.strftime('%d/%m/%Y') }}</p>
+                  </div>
+                  {{ status_badge('Conciliado' if item.conciliado else 'Pendiente') }}
+                </div>
+              </div>
+            {% else %}
+              <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Sin movimientos todavía.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <div class="space-y-7">
+          {% if can_write %}
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Conciliación bancaria</h3>
+              <form method="post" enctype="multipart/form-data" class="mt-6 space-y-4">
+                {{ reconcile_form.hidden_tag() }}
+                {{ form_field(reconcile_form.cuenta_id) }}
+                {{ form_field(reconcile_form.csv_file) }}
+                {{ form_submit("Guardar") }}
+              </form>
+            </article>
+
+            <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+              <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Actualizar tipo de cambio</h3>
+              <form method="post" class="mt-6 space-y-4">
+                {{ fx_form.hidden_tag() }}
+                {{ form_field(fx_form.fecha) }}
+                {{ form_submit("Guardar") }}
+              </form>
+            </article>
+          {% endif %}
+
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">BCRP reciente</h3>
+            <div class="mt-5 space-y-3">
+              {% for item in exchange_rates %}
+                <div class="rounded-[var(--radius-sm)] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <div>
+                      <p class="font-semibold text-slate-900">{{ item.moneda }} · {{ item.fecha.strftime('%d/%m/%Y') }}</p>
+                      <p class="mt-1 text-sm text-slate-500">Fuente {{ item.fuente|upper }}</p>
+                    </div>
+                    <p class="text-xl font-extrabold tracking-tight text-slate-950">{{ "%.3f"|format(item.venta) }}</p>
+                  </div>
+                </div>
+              {% else %}
+                <div class="rounded-[var(--radius-sm)] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">Sin tipos de cambio almacenados.</div>
+              {% endfor %}
+            </div>
+          </article>
+        </div>
+      </div>
+
+    {% elif active_submodule == "flujo" %}
+      <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="flex flex-wrap items-center gap-3">
+          {{ stat_badge('Liquidez', 'blue') }}
+          {{ stat_badge('Flujo neto S/ ' ~ ("%.2f"|format(cash_flow.neto))) }}
+        </div>
+        <h2 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">Flujo de caja</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantalla analítica separada para entradas, salidas y registro manual de movimientos.</p>
+      </article>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-emerald-700">Entradas</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-emerald-950">S/ {{ "%.2f"|format(cash_flow.ingresos) }}</p>
+          <p class="mt-2 text-sm text-emerald-800">Ingreso acumulado.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-rose-200 bg-rose-50 p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-rose-700">Salidas</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-rose-950">S/ {{ "%.2f"|format(cash_flow.egresos) }}</p>
+          <p class="mt-2 text-sm text-rose-800">Egreso acumulado.</p>
+        </article>
+        <article class="rounded-[var(--radius-md)] border border-slate-200 bg-white p-5 shadow-soft">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Neto</p>
+          <p class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950">S/ {{ "%.2f"|format(cash_flow.neto) }}</p>
+          <p class="mt-2 text-sm text-slate-600">Posición de caja.</p>
+        </article>
+      </div>
+
+      <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-[1fr_1fr]">
+        <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+          <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Comparativo</h3>
+          {% set peak = [cash_flow.ingresos, cash_flow.egresos, 1]|max %}
+          <div class="mt-6 space-y-5">
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span class="font-semibold text-slate-700">Entradas</span>
+                <span class="text-slate-500">S/ {{ "%.2f"|format(cash_flow.ingresos) }}</span>
+              </div>
+              <div class="h-3 rounded-full bg-slate-100">
+                <div class="h-3 rounded-full bg-emerald-500" style="width: {{ ((cash_flow.ingresos / peak) * 100) if peak else 0 }}%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span class="font-semibold text-slate-700">Salidas</span>
+                <span class="text-slate-500">S/ {{ "%.2f"|format(cash_flow.egresos) }}</span>
+              </div>
+              <div class="h-3 rounded-full bg-slate-100">
+                <div class="h-3 rounded-full bg-rose-500" style="width: {{ ((cash_flow.egresos / peak) * 100) if peak else 0 }}%"></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        {% if can_write %}
+          <article class="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-6 shadow-soft">
+            <h3 class="text-2xl font-extrabold tracking-tight text-slate-950">Movimiento manual</h3>
+            <form method="post" class="mt-6 space-y-4">
+              {{ movement_form.hidden_tag() }}
+              {{ form_field(movement_form.cuenta_id) }}
+              <div class="grid gap-4 md:grid-cols-3">
+                {{ form_field(movement_form.tipo) }}
+                {{ form_field(movement_form.fecha) }}
+                {{ form_field(movement_form.monto) }}
+              </div>
+              {{ form_field(movement_form.glosa) }}
+              {{ form_field(movement_form.contra_cuenta_codigo) }}
+              {{ form_submit("Guardar") }}
+            </form>
+          </article>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

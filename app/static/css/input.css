@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "components.css";
+
+@layer base {
+  body {
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 28%, white);
+  }
+}
+
+@layer utilities {
+  .shadow-panel {
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+  }
+}

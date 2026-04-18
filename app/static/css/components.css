@@ -1,0 +1,159 @@
+/* ==============================================================================
+   FacilERP — Component Styles (Tom Select + Flatpickr)
+   All colors reference CSS custom properties from :root for consistency.
+   ============================================================================== */
+
+/* ── Tom Select overrides ── */
+
+.ts-wrapper.single .ts-control {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised);
+  padding: 0.625rem 2.5rem 0.625rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-strong);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 42px;
+}
+
+.ts-wrapper.single .ts-control:hover {
+  border-color: #cbd5e1;
+}
+
+.ts-wrapper.single.focus .ts-control,
+.ts-wrapper.single .ts-control:focus-within {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px var(--bg-accent-soft);
+  outline: none;
+}
+
+.ts-wrapper .ts-control > input {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-strong);
+}
+
+.ts-wrapper .ts-control > input::placeholder {
+  color: var(--text-faint);
+}
+
+.ts-wrapper .ts-control .item {
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+/* Arrow */
+.ts-wrapper .ts-arrow {
+  border: none;
+  background: none;
+}
+
+.ts-wrapper .ts-arrow::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--text-faint);
+  margin-top: -2px;
+}
+
+/* Dropdown */
+.ts-dropdown {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.ts-dropdown .ts-dropdown-content {
+  max-height: 240px;
+  padding: 4px;
+}
+
+.ts-dropdown .option {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ts-dropdown .option:hover {
+  background: var(--surface-subtle);
+}
+
+.ts-dropdown .option.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ts-dropdown .option.selected {
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.ts-dropdown .no-results {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.875rem;
+}
+
+/* ── Flatpickr overrides ── */
+
+.flatpickr-calendar {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  font-family: 'Manrope', sans-serif;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.flatpickr-day:hover {
+  background: var(--surface-subtle);
+  border-color: var(--border-default);
+}
+
+.flatpickr-months .flatpickr-month {
+  background: var(--surface-base);
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  font-weight: 700;
+}
+
+.flatpickr-day.today {
+  border-color: var(--color-accent);
+}
+
+.flatpickr-day.today:hover {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+/* Error state for Tom Select */
+.ts-wrapper.has-errors .ts-control {
+  border-color: #fda4af;
+}
+
+.ts-wrapper.has-errors.focus .ts-control {
+  box-shadow: 0 0 0 3px var(--bg-danger-soft);
+}

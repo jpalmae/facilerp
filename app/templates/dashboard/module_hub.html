@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge %}
+
+{% block title %}{{ module_title }} · {{ marca.nombre_sistema }}{% endblock %}
+{% block page_title %}{{ module_title }}{% endblock %}
+{% block content %}
+  <section class="space-y-7">
+    <article class="overflow-hidden rounded-[var(--radius-lg)] border border-slate-200/80 bg-white p-6 shadow-soft lg:p-8">
+      <div class="grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
+        <div class="max-w-3xl">
+          <div class="flex flex-wrap items-center gap-3">
+            {% for badge in module_badges %}
+              {{ stat_badge(badge.label, badge.color if badge.get('color') else 'slate') }}
+            {% endfor %}
+          </div>
+          <h2 class="mt-5 max-w-[16ch] text-[clamp(2.25rem,2rem+1vw,3.5rem)] font-extrabold tracking-[-0.04em] text-slate-950">{{ module_heading }}</h2>
+        </div>
+        {% if module_actions %}
+          <div class="rounded-[var(--radius-lg)] border border-slate-200 bg-slate-50/90 p-4 sm:p-5">
+            <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Acceso directo</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+              {% for action in module_actions %}
+                <a
+                  href="{{ action.href }}"
+                  class="inline-flex items-center justify-between rounded-[var(--radius-sm)] px-5 py-3.5 text-sm font-semibold transition {{ 'bg-slate-950 text-white hover:-translate-y-0.5' if action.get('primary') else 'border border-slate-300 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50' }}"
+                >
+                  <span>{{ action.label }}</span>
+                  <span aria-hidden="true">→</span>
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </article>
+
+    {% if module_stats %}
+      <div class="grid gap-4 md:grid-cols-2 {% if module_stats|length == 3 %}xl:grid-cols-3{% elif module_stats|length >= 4 %}xl:grid-cols-4{% endif %}">
+        {% for stat in module_stats %}
+          <article class="rounded-[var(--radius-md)] border border-slate-200/80 bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-panel">
+            <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">{{ stat.label }}</p>
+            <p class="mt-5 text-3xl font-extrabold tracking-[-0.04em] text-slate-950">{{ stat.value }}</p>
+            <p class="mt-3 text-sm leading-6 text-slate-600">{{ stat.meta }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <article class="rounded-[var(--radius-lg)] border border-slate-200/80 bg-white p-5 lg:p-6 shadow-soft">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">Submódulos</p>
+          <h3 class="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Accesos por función</h3>
+        </div>
+        {{ stat_badge(module_children|length ~ ' accesos') }}
+      </div>
+      <div class="mt-7 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {% for child in module_children %}
+          <a href="{{ child.href }}" class="group rounded-[var(--radius-md)] border border-slate-200 bg-slate-50/85 p-5 transition hover:-translate-y-1 hover:border-slate-300 hover:bg-white hover:shadow-panel">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-lg font-extrabold tracking-tight text-slate-950">{{ child.label }}</p>
+                <p class="mt-3 text-sm leading-6 text-slate-600">{{ child.description }}</p>
+              </div>
+              <span class="rounded-full bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 shadow-sm transition group-hover:bg-slate-950 group-hover:text-white">Abrir</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

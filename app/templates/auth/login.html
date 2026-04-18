@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import stat_badge %}
+{% from "components/form_field.html" import form_field, form_errors, form_submit %}
+
+{% block title %}Ingresar · {{ app_name }}{% endblock %}
+{% block auth_content %}
+  <section class="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.14),_transparent_28%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-6 py-10 lg:px-10">
+    <div class="mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl gap-6 md:grid-cols-2 lg:grid-cols-[1.08fr_0.92fr]">
+      <div class="hidden md:flex flex-col justify-between rounded-[2rem] bg-slate-950 px-8 py-10 text-white shadow-panel lg:px-12">
+        <div>
+          <span class="inline-flex rounded-full border border-white/15 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">Axiom Ledger</span>
+          <h1 class="mt-8 max-w-xl text-5xl font-extrabold leading-tight">
+            Un espacio de trabajo claro para operación, liquidez y control contable.
+          </h1>
+          <p class="mt-6 max-w-lg text-lg text-slate-300">
+            Compras, ventas, inventario, tesorería y contabilidad en una sola superficie de trabajo.
+          </p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Operación</p>
+            <p class="mt-3 text-lg font-semibold">Inventario y ventas</p>
+          </div>
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Finanzas</p>
+            <p class="mt-3 text-lg font-semibold">Tesorería y CxC/CxP</p>
+          </div>
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Control</p>
+            <p class="mt-3 text-lg font-semibold">Contabilidad y seguridad</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4 flex items-center gap-3 md:hidden">
+            <img src="{{ marca.logo_url }}" alt="{{ marca.nombre_sistema }}" class="h-10 rounded-xl bg-slate-100 p-2">
+            <span class="text-lg font-bold text-slate-900">{{ marca.nombre_sistema }}</span>
+          </div>
+          <div class="flex items-center">
+        <div class="w-full rounded-[2rem] border border-slate-200/80 bg-white p-8 shadow-soft lg:p-10">
+          <div class="flex items-center gap-4">
+            <img src="{{ marca.logo_url }}" alt="{{ marca.nombre_sistema }}" class="h-14 rounded-2xl bg-slate-100 p-3">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                {{ stat_badge('Inicio de sesión', 'blue') }}
+              </div>
+              <h2 class="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">Accede a tu espacio de trabajo</h2>
+            </div>
+          </div>
+
+          <form method="post" class="mt-10 space-y-5">
+            {{ form.hidden_tag() }}
+            {{ form_field(form.email, placeholder="correo@empresa.pe") }}
+            {{ form_field(form.password, placeholder="Tu contraseña") }}
+            <label class="flex items-center gap-3 text-sm text-slate-600">
+              {{ form.remember(class="rounded border-slate-300 text-brand-secondary focus:ring-brand-secondary") }}
+              Mantener sesión en este navegador
+            </label>
+            {{ form_submit("Ingresar") }}
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body { font-family: sans-serif; color: #0f172a; font-size: 12px; }
+      h1, h2 { margin: 0 0 8px 0; }
+      .grid { display: flex; gap: 12px; margin: 16px 0; }
+      .card { flex: 1; border: 1px solid #cbd5e1; padding: 12px; border-radius: 12px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+      .muted { color: #475569; }
+    </style>
+  </head>
+  <body>
+    <h1>Resumen financiero</h1>
+    <p class="muted">FacilERP - exportación PDF</p>
+    <div class="grid">
+      <div class="card"><strong>Activo</strong><div>S/ {{ "%.2f"|format(snapshot.balance.activo) }}</div></div>
+      <div class="card"><strong>Pasivo</strong><div>S/ {{ "%.2f"|format(snapshot.balance.pasivo) }}</div></div>
+      <div class="card"><strong>Utilidad</strong><div>S/ {{ "%.2f"|format(snapshot.resultados.utilidad) }}</div></div>
+    </div>
+    <div class="grid">
+      <div class="card"><strong>CxC</strong><div>S/ {{ "%.2f"|format(aging.cxc.total) }}</div></div>
+      <div class="card"><strong>CxP</strong><div>S/ {{ "%.2f"|format(aging.cxp.total) }}</div></div>
+      <div class="card"><strong>Flujo neto</strong><div>S/ {{ "%.2f"|format(cash_flow.neto) }}</div></div>
+    </div>
+    <h2>Balance de comprobación</h2>
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Cuenta</th><th>Debe</th><th>Haber</th><th>Saldo</th></tr>
+      </thead>
+      <tbody>
+        {% for row in balances %}
+          <tr>
+            <td>{{ row.codigo }}</td>
+            <td>{{ row.nombre }}</td>
+            <td>S/ {{ "%.2f"|format(row.debe) }}</td>
+            <td>S/ {{ "%.2f"|format(row.haber) }}</td>
+            <td>S/ {{ "%.2f"|format(row.saldo) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
