@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlparse
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from flask import abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 from flask_login import current_user, login_required
 
@@ -22,6 +22,7 @@ from app.models import (
     PERM_SECURITY_VIEW,
     PERM_TREASURY_VIEW,
     PedidoVenta,
+    PedidoVentaLinea,
     Producto,
     ROLE_ADMIN,
     ROLE_CONTADOR,
@@ -169,6 +170,7 @@ def dashboard():
         for slug, module in MODULES.items()
         if current_user.has_permission(module["permission"], active_empresa_id)
     }
+
     today = date.today()
     year_start = date(today.year, 1, 1)
     month_start = date(today.year, today.month, 1)
@@ -179,106 +181,138 @@ def dashboard():
         previous_month_start = date(today.year, today.month - 1, 1)
         previous_month_end = date.fromordinal(month_start.toordinal() - 1)
 
-    sales_orders = (
-        PedidoVenta.query.filter(
-            PedidoVenta.empresa_id == active_empresa_id,
+    eid = active_empresa_id
+    sales_base = db.session.query(PedidoVenta).filter(
+        PedidoVenta.empresa_id == eid,
+        PedidoVenta.fecha >= year_start,
+        PedidoVenta.fecha <= today,
+    )
+    purchase_base = db.session.query(OrdenCompra).filter(
+        OrdenCompra.empresa_id == eid,
+        OrdenCompra.fecha >= year_start,
+        OrdenCompra.fecha <= today,
+    )
+
+    # ── KPI aggregates (4 queries instead of loading all rows) ──────
+    sales_ytd = _to_decimal(
+        sales_base.with_entities(func.sum(PedidoVenta.total)).scalar()
+    )
+    purchases_ytd = _to_decimal(
+        purchase_base.with_entities(func.sum(OrdenCompra.total)).scalar()
+    )
+    current_month_sales = _to_decimal(
+        sales_base.filter(PedidoVenta.fecha >= month_start)
+        .with_entities(func.sum(PedidoVenta.total)).scalar()
+    )
+    previous_month_sales = _to_decimal(
+        sales_base.filter(
+            PedidoVenta.fecha >= previous_month_start,
+            PedidoVenta.fecha <= previous_month_end,
+        ).with_entities(func.sum(PedidoVenta.total)).scalar()
+    )
+    current_month_purchases = _to_decimal(
+        purchase_base.filter(OrdenCompra.fecha >= month_start)
+        .with_entities(func.sum(OrdenCompra.total)).scalar()
+    )
+    previous_month_purchases = _to_decimal(
+        purchase_base.filter(
+            OrdenCompra.fecha >= previous_month_start,
+            OrdenCompra.fecha <= previous_month_end,
+        ).with_entities(func.sum(OrdenCompra.total)).scalar()
+    )
+
+    # ── Receivables (2 scalar queries) ──────────────────────────────
+    pending_receivables = _to_decimal(
+        db.session.query(func.sum(DocumentoCxC.monto_pendiente))
+        .filter_by(empresa_id=eid).scalar()
+    )
+    overdue_receivables = (
+        db.session.query(func.count(DocumentoCxC.id))
+        .filter(
+            DocumentoCxC.empresa_id == eid,
+            DocumentoCxC.monto_pendiente > 0,
+            DocumentoCxC.fecha_vencimiento < today,
+        ).scalar() or 0
+    )
+    total_receivables = (
+        db.session.query(func.count(DocumentoCxC.id))
+        .filter_by(empresa_id=eid).scalar() or 0
+    )
+
+    # ── Stock value & risk (2 scalar queries) ───────────────────────
+    stock_value = _to_decimal(
+        db.session.query(func.sum(Stock.cantidad_disponible * Producto.costo_promedio))
+        .join(Producto, Stock.producto_id == Producto.id)
+        .filter(Producto.empresa_id == eid).scalar()
+    )
+    catalog_count = (
+        db.session.query(func.count(Producto.id))
+        .filter_by(empresa_id=eid).scalar() or 0
+    )
+    risky_count = (
+        db.session.query(func.count(Producto.id))
+        .join(Stock, Stock.producto_id == Producto.id)
+        .filter(
+            Producto.empresa_id == eid,
+            Stock.cantidad_disponible <= Producto.stock_minimo,
+        ).scalar() or 0
+    )
+
+    # ── Monthly series (2 grouped queries) ──────────────────────────
+    sales_monthly_rows = (
+        sales_base.with_entities(
+            func.extract("month", PedidoVenta.fecha).label("m"),
+            func.sum(PedidoVenta.total).label("total"),
+        ).group_by("m").all()
+    )
+    purchase_monthly_rows = (
+        purchase_base.with_entities(
+            func.extract("month", OrdenCompra.fecha).label("m"),
+            func.sum(OrdenCompra.total).label("total"),
+        ).group_by("m").all()
+    )
+    monthly_sales = [Decimal("0.00")] * 12
+    monthly_purchases = [Decimal("0.00")] * 12
+    for row in sales_monthly_rows:
+        monthly_sales[int(row.m) - 1] = _to_decimal(row.total)
+    for row in purchase_monthly_rows:
+        monthly_purchases[int(row.m) - 1] = _to_decimal(row.total)
+
+    # ── Category distribution (1 grouped query) ─────────────────────
+    category_rows = (
+        db.session.query(
+            func.coalesce(
+                func.trim(func.coalesce(Producto.categoria, "")), "", "Sin categoría"
+            ).label("cat"),
+            func.sum(PedidoVentaLinea.subtotal + PedidoVentaLinea.igv_linea).label("amount"),
+        )
+        .join(PedidoVenta, PedidoVentaLinea.pedido_id == PedidoVenta.id)
+        .join(Producto, PedidoVentaLinea.producto_id == Producto.id)
+        .filter(
+            PedidoVenta.empresa_id == eid,
             PedidoVenta.fecha >= year_start,
             PedidoVenta.fecha <= today,
         )
-        .order_by(PedidoVenta.fecha.asc(), PedidoVenta.id.asc())
-        .all()
+        .group_by("cat").all()
     )
-    purchase_orders = (
-        OrdenCompra.query.filter(
-            OrdenCompra.empresa_id == active_empresa_id,
-            OrdenCompra.fecha >= year_start,
-            OrdenCompra.fecha <= today,
-        )
-        .order_by(OrdenCompra.fecha.asc(), OrdenCompra.id.asc())
-        .all()
-    )
-    receivables = DocumentoCxC.query.filter_by(empresa_id=active_empresa_id).all()
-    stock_rows = (
-        db.session.query(Stock, Producto)
-        .join(Producto, Stock.producto_id == Producto.id)
-        .filter(Producto.empresa_id == active_empresa_id)
-        .all()
-    )
-
-    sales_ytd = sum((_to_decimal(order.total) for order in sales_orders), Decimal("0.00"))
-    purchases_ytd = sum(
-        (_to_decimal(order.total) for order in purchase_orders),
-        Decimal("0.00"),
-    )
-    current_month_sales = sum(
-        (_to_decimal(order.total) for order in sales_orders if order.fecha >= month_start),
-        Decimal("0.00"),
-    )
-    previous_month_sales = sum(
-        (
-            _to_decimal(order.total)
-            for order in sales_orders
-            if previous_month_start <= order.fecha <= previous_month_end
-        ),
-        Decimal("0.00"),
-    )
-    current_month_purchases = sum(
-        (_to_decimal(order.total) for order in purchase_orders if order.fecha >= month_start),
-        Decimal("0.00"),
-    )
-    previous_month_purchases = sum(
-        (
-            _to_decimal(order.total)
-            for order in purchase_orders
-            if previous_month_start <= order.fecha <= previous_month_end
-        ),
-        Decimal("0.00"),
-    )
-    pending_receivables = sum(
-        (_to_decimal(document.monto_pendiente) for document in receivables),
-        Decimal("0.00"),
-    )
-    overdue_receivables = sum(
-        1
-        for document in receivables
-        if _to_decimal(document.monto_pendiente) > 0 and document.fecha_vencimiento < today
-    )
-    stock_value = Decimal("0.00")
-    risky_products: set[int] = set()
-    catalog_products: set[int] = set()
-    monthly_sales = [Decimal("0.00")] * 12
-    monthly_purchases = [Decimal("0.00")] * 12
     category_distribution: dict[str, Decimal] = {}
+    for row in category_rows:
+        label = row.cat if row.cat else "Sin categoría"
+        category_distribution[label] = _to_decimal(row.amount)
 
-    for order in sales_orders:
-        monthly_sales[order.fecha.month - 1] += _to_decimal(order.total)
-        for line in order.lineas:
-            category = (line.producto.categoria or "Sin categoría").strip() or "Sin categoría"
-            category_distribution.setdefault(category, Decimal("0.00"))
-            category_distribution[category] += _to_decimal(line.subtotal) + _to_decimal(line.igv_linea)
-
-    for order in purchase_orders:
-        monthly_purchases[order.fecha.month - 1] += _to_decimal(order.total)
-
-    for stock, product in stock_rows:
-        catalog_products.add(product.id)
-        available = _to_decimal(stock.cantidad_disponible)
-        stock_value += available * _to_decimal(product.costo_promedio)
-        if available <= _to_decimal(product.stock_minimo):
-            risky_products.add(product.id)
-
+    # ── Derived metrics ─────────────────────────────────────────────
     sales_delta, sales_trend = _percentage_change(current_month_sales, previous_month_sales)
     purchases_delta, purchases_trend = _percentage_change(
         current_month_purchases, previous_month_purchases
     )
     risk_ratio = (
-        (Decimal(len(risky_products)) / Decimal(len(catalog_products))) * Decimal("100")
-        if catalog_products
+        (Decimal(risky_count) / Decimal(catalog_count)) * Decimal("100")
+        if catalog_count
         else Decimal("0.00")
     )
     collections_ratio = (
-        (Decimal(overdue_receivables) / Decimal(len(receivables))) * Decimal("100")
-        if receivables
+        (Decimal(overdue_receivables) / Decimal(total_receivables)) * Decimal("100")
+        if total_receivables
         else Decimal("0.00")
     )
     sales_points, sales_polyline = _chart_series(monthly_sales)
@@ -310,7 +344,7 @@ def dashboard():
             "label": "Stock valorizado",
             "value": _currency(stock_value),
             "delta": f"{risk_ratio:.1f}%",
-            "trend": "down" if risky_products else "up",
+            "trend": "down" if risky_count else "up",
             "meta": "catálogo bajo mínimo",
         },
     ]
@@ -328,26 +362,39 @@ def dashboard():
         for module in visible_modules.values()
     ]
 
-    # Recent activity: last 10 orders (sales + purchases combined)
+    # ── Recent activity: last 10 orders via UNION (2 queries) ───────
+    recent_sales = (
+        sales_base.order_by(PedidoVenta.fecha.desc(), PedidoVenta.id.desc())
+        .limit(5).all()
+    )
+    recent_purchases = (
+        purchase_base.order_by(OrdenCompra.fecha.desc(), OrdenCompra.id.desc())
+        .limit(5).all()
+    )
     recent_orders: list[dict] = []
-    for order in sales_orders[-5:]:
+    for order in recent_sales:
         recent_orders.append({
             "reference": f"PV-{order.id:04d}",
             "type": "Pedido de venta",
             "amount": _currency(_to_decimal(order.total)),
             "status": "Completado" if _to_decimal(order.total) > 0 else "Pendiente",
             "date": order.fecha.strftime("%d/%m/%Y"),
+            "_sort": order.fecha,
         })
-    for order in purchase_orders[-5:]:
+    for order in recent_purchases:
         recent_orders.append({
             "reference": f"OC-{order.id:04d}",
             "type": "Orden de compra",
             "amount": _currency(_to_decimal(order.total)),
             "status": "Completado" if order.estado == "recibida" else "Pendiente",
             "date": order.fecha.strftime("%d/%m/%Y"),
+            "_sort": order.fecha,
         })
-    recent_orders.sort(key=lambda x: x["date"], reverse=True)
+    recent_orders.sort(key=lambda x: x["_sort"], reverse=True)
     recent_orders = recent_orders[:10]
+    # Strip internal sort key before template rendering
+    for item in recent_orders:
+        item.pop("_sort", None)
 
     return render_template(
         "dashboard/index.html",

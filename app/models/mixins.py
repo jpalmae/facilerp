@@ -5,24 +5,30 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy.orm import Mapped, mapped_column
+from flask import g
 
 import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.extensions import db
 
 
 class TimestampMixin:
-    """Adds ``created_at`` and ``updated_at`` columns."""
+    """Adds ``created_at`` and ``updated_at`` columns.
 
-    created_at: Mapped[datetime] = mapped_column(
-        sa.DateTime,
-        server_default=sa.func.now(),
-        nullable=False,
+    Uses Flask-SQLAlchemy ``db.Column`` so it integrates cleanly with
+    the rest of the codebase and keeps behaviour consistent (Python-side
+    defaults with timezone-aware datetimes).
+    """
+
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        sa.DateTime,
-        server_default=sa.func.now(),
-        onupdate=sa.func.now(),
-        nullable=False,
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
 

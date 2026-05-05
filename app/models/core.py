@@ -9,7 +9,7 @@ from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
-from app.models.mixins import ExpirableMixin
+from app.models.mixins import ExpirableMixin, TimestampMixin
 
 
 ROLE_ADMIN = "admin"
@@ -126,17 +126,6 @@ class DefaultBrand:
     favicon_url: str = "/static/img/defaults/facilerp-favicon.svg"
     color_primary: str = "#2563EB"
     color_secondary: str = "#1E3A5F"
-
-
-class TimestampMixin:
-    created_at = db.Column(
-        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-    )
 
 
 class User(UserMixin, TimestampMixin, db.Model):

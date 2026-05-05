@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.extensions import db
-from app.models.core import TimestampMixin
+from app.models.mixins import TimestampMixin
 
 
 class Producto(TimestampMixin, db.Model):

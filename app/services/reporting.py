@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
-from textwrap import dedent
 
 from flask import current_app, render_template
 from openpyxl import Workbook
@@ -113,7 +112,12 @@ def build_ple_txt(empresa_id: int) -> BytesIO:
     return output
 
 
-def build_financial_pdf(empresa_id: int) -> bytes:
+def build_financial_pdf(empresa_id: int) -> tuple[bytes, str]:
+    """Return (payload_bytes, mimetype).
+
+    Generates a proper PDF when WeasyPrint is available.
+    Falls back to a downloadable HTML file with a clear warning if not.
+    """
     html = render_template(
         "reportes/pdf_financial.html",
         snapshot=statement_snapshot(empresa_id),
@@ -124,29 +128,14 @@ def build_financial_pdf(empresa_id: int) -> bytes:
     try:
         from weasyprint import HTML
 
-        return HTML(string=html, base_url=str(current_app.root_path)).write_pdf()
+        pdf_bytes = HTML(string=html, base_url=str(current_app.root_path)).write_pdf()
+        return pdf_bytes, "application/pdf"
+    except ImportError:
+        current_app.logger.warning(
+            "WeasyPrint no está instalado — el reporte se exportará como HTML. "
+            "Instale weasyprint para generar PDFs reales."
+        )
+        return html.encode("utf-8"), "text/html; charset=utf-8"
     except Exception:
-        summary = statement_snapshot(empresa_id)
-        text = dedent(
-            f"""\
-            FacilERP Reporte Financiero
-            Activo: {summary['balance']['activo']}
-            Pasivo: {summary['balance']['pasivo']}
-            Utilidad: {summary['resultados']['utilidad']}
-            """
-        )
-        stream = text.encode("latin-1", errors="ignore")
-        pdf = (
-            b"%PDF-1.4\n"
-            b"1 0 obj<< /Type /Catalog /Pages 2 0 R>>endobj\n"
-            b"2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1>>endobj\n"
-            b"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R>>>>>>endobj\n"
-            + f"4 0 obj<< /Length {len(stream) + 49}>>stream\nBT /F1 12 Tf 72 720 Td ({text.strip()}) Tj ET\nendstream endobj\n".encode(
-                "latin-1", errors="ignore"
-            )
-            + b"5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica>>endobj\n"
-            b"xref\n0 6\n0000000000 65535 f \n"
-            b"0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000243 00000 n \n0000000000 00000 n \n"
-            b"trailer<< /Root 1 0 R /Size 6>>\nstartxref\n0\n%%EOF"
-        )
-        return pdf
+        current_app.logger.exception("Error generando PDF con WeasyPrint — exportando HTML como fallback.")
+        return html.encode("utf-8"), "text/html; charset=utf-8"

@@ -122,12 +122,13 @@ def export_excel():
 @permission_required(PERM_REPORTS_VIEW)
 def export_pdf():
     empresa_id = int(session["active_empresa_id"])
-    payload = build_financial_pdf(empresa_id)
+    payload, mimetype = build_financial_pdf(empresa_id)
+    download_name = "facilerp-reportes.pdf" if mimetype == "application/pdf" else "facilerp-reportes.html"
     return send_file(
         BytesIO(payload),
         as_attachment=True,
-        download_name="facilerp-reportes.pdf",
-        mimetype="application/pdf",
+        download_name=download_name,
+        mimetype=mimetype,
     )
 
 

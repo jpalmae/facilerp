@@ -58,6 +58,14 @@ def register_treasury_movement(
     if amount <= Decimal("0.00"):
         raise TreasuryError("El monto debe ser mayor a cero.")
 
+    # Re-fetch with row-level lock to prevent concurrent balance corruption
+    treasury_account = (
+        db.session.query(CuentaTesoreria)
+        .filter_by(id=treasury_account.id)
+        .with_for_update()
+        .one()
+    )
+
     contra = get_account(empresa_id, contra_cuenta_codigo)
     treasury_ledger = treasury_account.cuenta_contable
 
@@ -164,6 +172,21 @@ def transfer_between_accounts(
     amount = as_decimal(monto)
     if amount <= Decimal("0.00"):
         raise TreasuryError("La transferencia debe ser mayor a cero.")
+
+    # Re-fetch both accounts with row-level lock to prevent concurrent balance corruption
+    source = (
+        db.session.query(CuentaTesoreria)
+        .filter_by(id=source.id)
+        .with_for_update()
+        .one()
+    )
+    destination = (
+        db.session.query(CuentaTesoreria)
+        .filter_by(id=destination.id)
+        .with_for_update()
+        .one()
+    )
+
     if as_decimal(source.saldo_actual) < amount:
         raise TreasuryError("La cuenta origen no tiene saldo suficiente.")
 
