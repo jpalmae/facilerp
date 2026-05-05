@@ -115,6 +115,7 @@ def register_request_hooks(app: Flask) -> None:
         g._perm_cache = {}
         g._role_cache = {}
         g._ctx_globals = None
+        g.csp_nonce = uuid.uuid4().hex
         if not current_user.is_authenticated:
             return
         empresa_id = get_active_empresa_id()
@@ -132,8 +133,10 @@ def register_request_hooks(app: Flask) -> None:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
-            "font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
+            "script-src 'self' 'nonce-{g.csp_nonce}' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
+            "font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'".format(
+                g=g
+            ),
         )
         if app.config["ENABLE_HSTS"] and request.is_secure:
             response.headers.setdefault(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import AuditLog
 from app.modules.auth import bp
 from app.modules.auth.forms import LoginForm
@@ -11,6 +11,7 @@ from app.services.auth_provider import authenticate_credentials
 
 
 @bp.route("/login", methods=["GET", "POST"])
+@limiter.limit("5/minute")
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("core.dashboard"))
