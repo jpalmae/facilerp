@@ -45,85 +45,196 @@ from app.services.treasury import (
 )
 
 
-def ensure_security_demo_data() -> None:
-    empresa_principal = Empresa.query.filter_by(ruc="20123456789").first()
-    if empresa_principal is None:
-        return
+# ── Phase 1: Companies & branding ────────────────────────────────────────
 
-    contador = User.query.filter_by(email="contador@facilerp.pe").first()
-    vendedor = User.query.filter_by(email="ventas@facilerp.pe").first()
+
+def _ensure_empresas() -> dict[str, Empresa]:
+    """Create demo companies. Returns dict keyed by RUC."""
+    existing: dict[str, Empresa] = {
+        e.ruc: e for e in Empresa.query.filter(
+            Empresa.ruc.in_(["20123456789", "20567891234"])
+        ).all()
+    }
+    if "20123456789" not in existing:
+        existing["20123456789"] = Empresa(
+            ruc="20123456789",
+            razon_social="ContaFácil SAC",
+            moneda="PEN",
+            regimen_tributario="Régimen General",
+        )
+        db.session.add(existing["20123456789"])
+
+    if "20567891234" not in existing:
+        existing["20567891234"] = Empresa(
+            ruc="20567891234",
+            razon_social="Andes Retail EIRL",
+            moneda="PEN",
+            regimen_tributario="MYPE Tributario",
+        )
+        db.session.add(existing["20567891234"])
+
+    db.session.flush()
+    return existing
+
+
+def _ensure_marca(empresas: dict[str, Empresa]) -> None:
+    """Create brand configs for demo companies."""
     admin = User.query.filter_by(email="admin@facilerp.pe").first()
-    if contador is None or vendedor is None or admin is None:
+    updated_by = admin.id if admin else None
+
+    configs = [
+        ("20123456789", "ContaFácil SAC", "#0F766E", "#16324F"),
+        ("20567891234", "Andes Retail ERP", "#C2410C", "#3F1D2E"),
+    ]
+    for ruc, nombre, primary, secondary in configs:
+        empresa = empresas.get(ruc)
+        if empresa is None:
+            continue
+        exists = MarcaConfig.query.filter_by(empresa_id=empresa.id).first()
+        if exists is None:
+            db.session.add(
+                MarcaConfig(
+                    empresa_id=empresa.id,
+                    nombre_sistema=nombre,
+                    color_primary=primary,
+                    color_secondary=secondary,
+                    updated_by=updated_by,
+                )
+            )
+    db.session.flush()
+
+
+# ── Phase 2: Users & roles ───────────────────────────────────────────────
+
+
+def _ensure_users() -> dict[str, User]:
+    """Create demo users. Returns dict keyed by email."""
+    emails = ["admin@facilerp.pe", "contador@facilerp.pe", "ventas@facilerp.pe"]
+    existing: dict[str, User] = {
+        u.email: u for u in User.query.filter(User.email.in_(emails)).all()
+    }
+
+    specs = [
+        ("admin@facilerp.pe", "Ana Torres", "Admin123!"),
+        ("contador@facilerp.pe", "Jorge Medina", "Contador123!"),
+        ("ventas@facilerp.pe", "Carla Ruiz", "Ventas123!"),
+    ]
+    for email, nombre, password in specs:
+        if email not in existing:
+            user = User(email=email, nombre=nombre)
+            user.set_password(password)
+            db.session.add(user)
+            existing[email] = user
+
+    db.session.flush()
+    return existing
+
+
+def _ensure_user_roles(
+    users: dict[str, User], empresas: dict[str, Empresa]
+) -> None:
+    """Assign roles to demo users in demo companies."""
+    principal = empresas.get("20123456789")
+    secundaria = empresas.get("20567891234")
+    if principal is None:
         return
 
-    if admin.default_empresa_id is None:
-        admin.default_empresa_id = empresa_principal.id
-    if contador.default_empresa_id is None:
-        contador.default_empresa_id = empresa_principal.id
-    if vendedor.default_empresa_id is None:
-        vendedor.default_empresa_id = empresa_principal.id
+    specs = [
+        ("admin@facilerp.pe", principal.id, ROLE_ADMIN),
+        ("admin@facilerp.pe", secundaria.id, ROLE_ADMIN) if secundaria else None,
+        ("contador@facilerp.pe", principal.id, ROLE_CONTADOR),
+        ("ventas@facilerp.pe", principal.id, ROLE_VENDEDOR),
+    ]
 
-    grupo_finanzas = SecurityGroup.query.filter_by(
-        empresa_id=empresa_principal.id,
-        nombre="Finanzas",
-    ).first()
-    if grupo_finanzas is None:
-        grupo_finanzas = SecurityGroup(
-            empresa_id=empresa_principal.id,
-            nombre="Finanzas",
-            descripcion="Equipo contable y de tesorería.",
-        )
-        db.session.add(grupo_finanzas)
-        db.session.flush()
-
-    grupo_comercial = SecurityGroup.query.filter_by(
-        empresa_id=empresa_principal.id,
-        nombre="Comercial",
-    ).first()
-    if grupo_comercial is None:
-        grupo_comercial = SecurityGroup(
-            empresa_id=empresa_principal.id,
-            nombre="Comercial",
-            descripcion="Equipo comercial con foco en ventas y seguimiento.",
-        )
-        db.session.add(grupo_comercial)
-        db.session.flush()
-
-    for group, permission_code in [
-        (grupo_finanzas, PERM_PURCHASES_VIEW),
-        (grupo_finanzas, PERM_PURCHASES_MANAGE),
-        (grupo_finanzas, PERM_CXC_CXP_VIEW),
-        (grupo_finanzas, PERM_CXC_CXP_MANAGE),
-        (grupo_finanzas, PERM_ACCOUNTING_VIEW),
-        (grupo_finanzas, PERM_ACCOUNTING_MANAGE),
-        (grupo_finanzas, PERM_TREASURY_VIEW),
-        (grupo_finanzas, PERM_TREASURY_MANAGE),
-        (grupo_finanzas, PERM_REPORTS_VIEW),
-        (grupo_comercial, PERM_INVENTORY_VIEW),
-        (grupo_comercial, PERM_SALES_VIEW),
-        (grupo_comercial, PERM_SALES_MANAGE),
-        (grupo_comercial, PERM_CXC_CXP_VIEW),
-        (grupo_comercial, PERM_REPORTS_VIEW),
-    ]:
-        exists = SecurityGroupPermission.query.filter_by(
-            group_id=group.id,
-            permission_code=permission_code,
+    for spec in specs:
+        if spec is None:
+            continue
+        email, empresa_id, rol = spec
+        user = users.get(email)
+        if user is None:
+            continue
+        exists = UserEmpresaRole.query.filter_by(
+            user_id=user.id, empresa_id=empresa_id, rol=rol
         ).first()
         if exists is None:
             db.session.add(
-                SecurityGroupPermission(
-                    group_id=group.id,
-                    permission_code=permission_code,
-                )
+                UserEmpresaRole(user_id=user.id, empresa_id=empresa_id, rol=rol)
             )
+        # Set default empresa
+        if user.default_empresa_id is None:
+            user.default_empresa_id = principal.id
 
-    for user, group in [
-        (contador, grupo_finanzas),
-        (vendedor, grupo_comercial),
-    ]:
+    db.session.flush()
+
+
+# ── Phase 3: Security groups ─────────────────────────────────────────────
+
+
+def _ensure_security_groups(empresas: dict[str, Empresa], users: dict[str, User]) -> None:
+    """Create security groups with permissions and assign users."""
+    principal = empresas.get("20123456789")
+    if principal is None:
+        return
+
+    # Groups
+    groups_spec = {
+        "Finanzas": "Equipo contable y de tesorería.",
+        "Comercial": "Equipo comercial con foco en ventas y seguimiento.",
+    }
+    groups: dict[str, SecurityGroup] = {}
+    for nombre, descripcion in groups_spec.items():
+        group = SecurityGroup.query.filter_by(
+            empresa_id=principal.id, nombre=nombre
+        ).first()
+        if group is None:
+            group = SecurityGroup(
+                empresa_id=principal.id,
+                nombre=nombre,
+                descripcion=descripcion,
+            )
+            db.session.add(group)
+            db.session.flush()
+        groups[nombre] = group
+
+    # Permissions per group
+    perm_map = {
+        "Finanzas": [
+            PERM_PURCHASES_VIEW, PERM_PURCHASES_MANAGE,
+            PERM_CXC_CXP_VIEW, PERM_CXC_CXP_MANAGE,
+            PERM_ACCOUNTING_VIEW, PERM_ACCOUNTING_MANAGE,
+            PERM_TREASURY_VIEW, PERM_TREASURY_MANAGE,
+            PERM_REPORTS_VIEW,
+        ],
+        "Comercial": [
+            PERM_INVENTORY_VIEW,
+            PERM_SALES_VIEW, PERM_SALES_MANAGE,
+            PERM_CXC_CXP_VIEW,
+            PERM_REPORTS_VIEW,
+        ],
+    }
+    for nombre, codes in perm_map.items():
+        group = groups[nombre]
+        for code in codes:
+            exists = SecurityGroupPermission.query.filter_by(
+                group_id=group.id, permission_code=code
+            ).first()
+            if exists is None:
+                db.session.add(
+                    SecurityGroupPermission(group_id=group.id, permission_code=code)
+                )
+
+    # User assignments
+    assignments = [
+        ("contador@facilerp.pe", "Finanzas"),
+        ("ventas@facilerp.pe", "Comercial"),
+    ]
+    for email, group_name in assignments:
+        user = users.get(email)
+        group = groups.get(group_name)
+        if user is None or group is None:
+            continue
         exists = SecurityUserGroup.query.filter_by(
-            user_id=user.id,
-            group_id=group.id,
+            user_id=user.id, group_id=group.id
         ).first()
         if exists is None:
             db.session.add(
@@ -132,254 +243,202 @@ def ensure_security_demo_data() -> None:
         else:
             exists.activo = True
 
+    db.session.flush()
 
-def ensure_demo_data() -> None:
-    if Empresa.query.first():
-        ensure_security_demo_data()
+
+# ── Phase 4: Accounting setup ────────────────────────────────────────────
+
+
+def _ensure_accounting(empresas: dict[str, Empresa]) -> None:
+    """Ensure accounting plan is set up for all demo companies."""
+    for empresa in empresas.values():
+        ensure_accounting_setup(empresa.id)
+
+
+# ── Phase 5: Master data (warehouses, products, contacts) ────────────────
+
+
+def _ensure_master_data(
+    empresas: dict[str, Empresa]
+) -> dict[str, object]:
+    """Create warehouses, products, supplier, and customer.
+    Returns a dict with created entities."""
+    principal = empresas.get("20123456789")
+    if principal is None:
+        return {}
+
+    result: dict[str, object] = {}
+
+    # Warehouses
+    for nombre, ubicacion in [("Almacén Principal", "Lima"), ("Showroom", "Miraflores")]:
+        wh = Almacen.query.filter_by(
+            empresa_id=principal.id, nombre=nombre
+        ).first()
+        if wh is None:
+            wh = Almacen(empresa_id=principal.id, nombre=nombre, ubicacion=ubicacion)
+            db.session.add(wh)
+        result[nombre] = wh
+
+    # Products
+    products_spec = [
+        ("LAP-15", "Laptop 15 pulgadas", "Tecnología", Decimal("3200.00"), Decimal("5.00")),
+        ("MSE-WL", "Mouse inalámbrico", "Periféricos", Decimal("90.00"), Decimal("10.00")),
+    ]
+    for codigo, nombre, cat, precio, stock_min in products_spec:
+        prod = Producto.query.filter_by(
+            empresa_id=principal.id, codigo=codigo
+        ).first()
+        if prod is None:
+            prod = Producto(
+                empresa_id=principal.id,
+                codigo=codigo,
+                nombre=nombre,
+                categoria=cat,
+                unidad_medida="UND",
+                tipo="bien",
+                precio_venta=precio,
+                stock_minimo=stock_min,
+            )
+            db.session.add(prod)
+        result[codigo] = prod
+
+    # Supplier
+    prov = Proveedor.query.filter_by(
+        empresa_id=principal.id, ruc="20601234567"
+    ).first()
+    if prov is None:
+        prov = Proveedor(
+            empresa_id=principal.id,
+            ruc="20601234567",
+            razon_social="Distribuidora Lima SAC",
+            condicion_pago="credito",
+        )
+        db.session.add(prov)
+    result["proveedor"] = prov
+
+    # Customer
+    cli = Cliente.query.filter_by(
+        empresa_id=principal.id, documento="20111111111"
+    ).first()
+    if cli is None:
+        cli = Cliente(
+            empresa_id=principal.id,
+            documento="20111111111",
+            razon_social="Comercial Pacífico SAC",
+            condicion_pago="credito",
+        )
+        db.session.add(cli)
+    result["cliente"] = cli
+
+    db.session.flush()
+    return result
+
+
+# ── Phase 6: Treasury accounts ───────────────────────────────────────────
+
+
+def _ensure_treasury(empresas: dict[str, Empresa]) -> dict[str, object]:
+    """Create demo treasury accounts and seed with initial balance."""
+    principal = empresas.get("20123456789")
+    if principal is None:
+        return {}
+
+    from app.models import CuentaTesoreria
+
+    result: dict[str, object] = {}
+
+    # Bank account
+    cuenta_banco = CuentaTesoreria.query.filter_by(
+        empresa_id=principal.id, nombre="BCP Operaciones"
+    ).first()
+    if cuenta_banco is None:
+        cuenta_banco = create_treasury_account(
+            empresa_id=principal.id,
+            tipo="banco",
+            nombre="BCP Operaciones",
+            banco="BCP",
+            numero_cuenta="001-123456789-01",
+            moneda="PEN",
+            cuenta_contable_codigo="1041",
+        )
+    result["banco"] = cuenta_banco
+
+    # Cash account
+    cuenta_caja = CuentaTesoreria.query.filter_by(
+        empresa_id=principal.id, nombre="Caja Principal"
+    ).first()
+    if cuenta_caja is None:
+        cuenta_caja = create_treasury_account(
+            empresa_id=principal.id,
+            tipo="caja",
+            nombre="Caja Principal",
+            banco=None,
+            numero_cuenta=None,
+            moneda="PEN",
+            cuenta_contable_codigo="1011",
+        )
+    result["caja"] = cuenta_caja
+
+    # Seed initial balance if account is at zero
+    if cuenta_banco.saldo_actual == 0:
+        register_treasury_movement(
+            empresa_id=principal.id,
+            treasury_account=cuenta_banco,
+            tipo="ingreso",
+            monto=Decimal("5000.00"),
+            fecha=date.today(),
+            glosa="Saldo inicial demo",
+            contra_cuenta_codigo="7599",
+        )
+
+    return result
+
+
+# ── Phase 7: Sample transactions ─────────────────────────────────────────
+
+
+def _ensure_sample_transactions(
+    empresas: dict[str, Empresa],
+    master: dict[str, object],
+    treasury: dict[str, object],
+) -> None:
+    """Create sample purchase, sale, and payment transactions."""
+    principal = empresas.get("20123456789")
+    if principal is None:
         return
 
-    empresa_principal = Empresa(
-        ruc="20123456789",
-        razon_social="ContaFácil SAC",
-        moneda="PEN",
-        regimen_tributario="Régimen General",
-    )
-    empresa_secundaria = Empresa(
-        ruc="20567891234",
-        razon_social="Andes Retail EIRL",
-        moneda="PEN",
-        regimen_tributario="MYPE Tributario",
-    )
+    almacen = master.get("Almacén Principal")
+    producto_a = master.get("LAP-15")
+    producto_b = master.get("MSE-WL")
+    proveedor = master.get("proveedor")
+    cliente = master.get("cliente")
+    cuenta_banco = treasury.get("banco")
 
-    admin = User(email="admin@facilerp.pe", nombre="Ana Torres")
-    admin.set_password("Admin123!")
+    if not all([almacen, producto_a, producto_b, proveedor, cliente, cuenta_banco]):
+        return
 
-    contador = User(email="contador@facilerp.pe", nombre="Jorge Medina")
-    contador.set_password("Contador123!")
+    # Check if sample transactions already exist (by observation text)
+    from app.models import MovimientoStock
 
-    vendedor = User(email="ventas@facilerp.pe", nombre="Carla Ruiz")
-    vendedor.set_password("Ventas123!")
+    existing = MovimientoStock.query.filter_by(
+        empresa_id=principal.id, referencia_tipo="orden_compra"
+    ).first()
+    if existing is not None:
+        return  # Transactions already seeded
 
-    db.session.add_all(
-        [empresa_principal, empresa_secundaria, admin, contador, vendedor]
-    )
-    db.session.flush()
-
-    db.session.add_all(
-        [
-            UserEmpresaRole(
-                user_id=admin.id,
-                empresa_id=empresa_principal.id,
-                rol=ROLE_ADMIN,
-            ),
-            UserEmpresaRole(
-                user_id=admin.id,
-                empresa_id=empresa_secundaria.id,
-                rol=ROLE_ADMIN,
-            ),
-            UserEmpresaRole(
-                user_id=contador.id,
-                empresa_id=empresa_principal.id,
-                rol=ROLE_CONTADOR,
-            ),
-            UserEmpresaRole(
-                user_id=vendedor.id,
-                empresa_id=empresa_principal.id,
-                rol=ROLE_VENDEDOR,
-            ),
-        ]
-    )
-
-    admin.default_empresa_id = empresa_principal.id
-    contador.default_empresa_id = empresa_principal.id
-    vendedor.default_empresa_id = empresa_principal.id
-
-    db.session.add_all(
-        [
-            MarcaConfig(
-                empresa_id=empresa_principal.id,
-                nombre_sistema="ContaFácil SAC",
-                color_primary="#0F766E",
-                color_secondary="#16324F",
-                updated_by=admin.id,
-            ),
-            MarcaConfig(
-                empresa_id=empresa_secundaria.id,
-                nombre_sistema="Andes Retail ERP",
-                color_primary="#C2410C",
-                color_secondary="#3F1D2E",
-                updated_by=admin.id,
-            ),
-        ]
-    )
-
-    db.session.flush()
-
-    grupo_finanzas = SecurityGroup(
-        empresa_id=empresa_principal.id,
-        nombre="Finanzas",
-        descripcion="Equipo contable y de tesorería.",
-    )
-    grupo_comercial = SecurityGroup(
-        empresa_id=empresa_principal.id,
-        nombre="Comercial",
-        descripcion="Equipo comercial con foco en ventas y seguimiento.",
-    )
-    db.session.add_all([grupo_finanzas, grupo_comercial])
-    db.session.flush()
-    db.session.add_all(
-        [
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_PURCHASES_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_PURCHASES_MANAGE
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_CXC_CXP_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_CXC_CXP_MANAGE
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_ACCOUNTING_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_ACCOUNTING_MANAGE
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_TREASURY_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_TREASURY_MANAGE
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_finanzas.id, permission_code=PERM_REPORTS_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_comercial.id, permission_code=PERM_INVENTORY_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_comercial.id, permission_code=PERM_SALES_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_comercial.id, permission_code=PERM_SALES_MANAGE
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_comercial.id, permission_code=PERM_CXC_CXP_VIEW
-            ),
-            SecurityGroupPermission(
-                group_id=grupo_comercial.id, permission_code=PERM_REPORTS_VIEW
-            ),
-        ]
-    )
-    db.session.add_all(
-        [
-            SecurityUserGroup(
-                user_id=contador.id, group_id=grupo_finanzas.id, activo=True
-            ),
-            SecurityUserGroup(
-                user_id=vendedor.id, group_id=grupo_comercial.id, activo=True
-            ),
-        ]
-    )
-
-    ensure_accounting_setup(empresa_principal.id)
-    ensure_accounting_setup(empresa_secundaria.id)
-
-    almacen_principal = Almacen(
-        empresa_id=empresa_principal.id,
-        nombre="Almacén Principal",
-        ubicacion="Lima",
-    )
-    almacen_secundario = Almacen(
-        empresa_id=empresa_principal.id,
-        nombre="Showroom",
-        ubicacion="Miraflores",
-    )
-    producto_a = Producto(
-        empresa_id=empresa_principal.id,
-        codigo="LAP-15",
-        nombre="Laptop 15 pulgadas",
-        categoria="Tecnología",
-        unidad_medida="UND",
-        tipo="bien",
-        precio_venta=Decimal("3200.00"),
-        stock_minimo=Decimal("5.00"),
-    )
-    producto_b = Producto(
-        empresa_id=empresa_principal.id,
-        codigo="MSE-WL",
-        nombre="Mouse inalámbrico",
-        categoria="Periféricos",
-        unidad_medida="UND",
-        tipo="bien",
-        precio_venta=Decimal("90.00"),
-        stock_minimo=Decimal("10.00"),
-    )
-    proveedor = Proveedor(
-        empresa_id=empresa_principal.id,
-        ruc="20601234567",
-        razon_social="Distribuidora Lima SAC",
-        condicion_pago="credito",
-    )
-    cliente = Cliente(
-        empresa_id=empresa_principal.id,
-        documento="20111111111",
-        razon_social="Comercial Pacífico SAC",
-        condicion_pago="credito",
-    )
-    db.session.add_all(
-        [
-            almacen_principal,
-            almacen_secundario,
-            producto_a,
-            producto_b,
-            proveedor,
-            cliente,
-        ]
-    )
-    db.session.flush()
-
-    cuenta_banco = create_treasury_account(
-        empresa_id=empresa_principal.id,
-        tipo="banco",
-        nombre="BCP Operaciones",
-        banco="BCP",
-        numero_cuenta="001-123456789-01",
-        moneda="PEN",
-        cuenta_contable_codigo="1041",
-    )
-    cuenta_caja = create_treasury_account(
-        empresa_id=empresa_principal.id,
-        tipo="caja",
-        nombre="Caja Principal",
-        banco=None,
-        numero_cuenta=None,
-        moneda="PEN",
-        cuenta_contable_codigo="1011",
-    )
-    _ = cuenta_caja
-    register_treasury_movement(
-        empresa_id=empresa_principal.id,
-        treasury_account=cuenta_banco,
-        tipo="ingreso",
-        monto=Decimal("5000.00"),
-        fecha=date.today(),
-        glosa="Saldo inicial demo",
-        contra_cuenta_codigo="7599",
-    )
-
+    # Initial stock entry
     register_stock_movement(
-        empresa_id=empresa_principal.id,
+        empresa_id=principal.id,
         producto=producto_b,
-        almacen=almacen_principal,
+        almacen=almacen,
         tipo=MOV_ENTRADA,
         cantidad=Decimal("25.00"),
         costo_unitario=Decimal("45.00"),
     )
+
+    # Purchase order
     orden = create_purchase_order(
-        empresa_id=empresa_principal.id,
+        empresa_id=principal.id,
         proveedor_id=proveedor.id,
         producto=producto_a,
         cantidad=Decimal("8.00"),
@@ -389,36 +448,68 @@ def ensure_demo_data() -> None:
     )
     recepcion = receive_purchase_order(
         orden=orden,
-        almacen=almacen_principal,
+        almacen=almacen,
         cantidad_recibida=Decimal("3.00"),
         fecha=date.today(),
     )
+
+    # Sales order
     venta = create_sales_order(
-        empresa_id=empresa_principal.id,
+        empresa_id=principal.id,
         cliente=cliente,
         producto=producto_b,
-        almacen=almacen_principal,
+        almacen=almacen,
         cantidad=Decimal("2.00"),
         precio_unitario=Decimal("90.00"),
         fecha=date.today(),
         observaciones="Venta demo",
     )
+
+    # Collection
     register_collection(
-        empresa_id=empresa_principal.id,
+        empresa_id=principal.id,
         documento=venta.documentos_cxc[0],
         treasury_account=cuenta_banco,
         monto=Decimal("106.20"),
         fecha=date.today(),
         tipo_pago="transferencia",
     )
+
+    # Supplier payment
     documento_cxp = DocumentoCxP.query.filter_by(recepcion_id=recepcion.id).first()
     register_supplier_payment(
-        empresa_id=empresa_principal.id,
+        empresa_id=principal.id,
         documento=documento_cxp,
         treasury_account=cuenta_banco,
         monto=Decimal("1000.00"),
         fecha=date.today(),
         tipo_pago="transferencia",
     )
+
+
+# ── Public API ───────────────────────────────────────────────────────────
+
+
+def ensure_security_demo_data() -> None:
+    """Ensure security groups exist for the main demo company (idempotent)."""
+    empresa_principal = Empresa.query.filter_by(ruc="20123456789").first()
+    if empresa_principal is None:
+        return
+
+    users = _ensure_users()
+    _ensure_security_groups({"20123456789": empresa_principal}, users)
+
+
+def ensure_demo_data() -> None:
+    """Seed the database with demo data (fully idempotent)."""
+    empresas = _ensure_empresas()
+    users = _ensure_users()
+    _ensure_marca(empresas)
+    _ensure_user_roles(users, empresas)
+    _ensure_security_groups(empresas, users)
+    _ensure_accounting(empresas)
+    master = _ensure_master_data(empresas)
+    treasury = _ensure_treasury(empresas)
+    _ensure_sample_transactions(empresas, master, treasury)
 
     db.session.commit()

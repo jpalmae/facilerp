@@ -125,16 +125,37 @@ def _render_dashboard(
     *,
     active_submodule: str,
 ):
+    from sqlalchemy.orm import joinedload, selectinload
+
+    # ── Users ──────────────────────────────────────────────────────────
+    # Single query: memberships + users + their group/warehouse assignments
     memberships = (
         UserEmpresaRole.query.filter_by(empresa_id=empresa_id)
+        .options(
+            joinedload(UserEmpresaRole.user).selectinload(
+                User.group_assignments
+            ).joinedload(SecurityUserGroup.group),
+            joinedload(UserEmpresaRole.user).selectinload(
+                User.warehouse_assignments
+            ),
+        )
         .order_by(UserEmpresaRole.activo.desc(), UserEmpresaRole.created_at.asc())
         .all()
     )
+
+    # ── Groups ─────────────────────────────────────────────────────────
+    # Single query: groups + their assignments + assigned users' memberships
     groups = (
         SecurityGroup.query.filter_by(empresa_id=empresa_id)
+        .options(
+            selectinload(SecurityGroup.assignments).joinedload(
+                SecurityUserGroup.user
+            ).selectinload(User.memberships),
+        )
         .order_by(SecurityGroup.activo.desc(), SecurityGroup.nombre.asc())
         .all()
     )
+
     warehouses = (
         Almacen.query.filter_by(empresa_id=empresa_id, activo=True)
         .order_by(Almacen.nombre.asc())
@@ -181,9 +202,39 @@ def _render_dashboard(
             }
         )
 
+    # ── Companies ──────────────────────────────────────────────────────
+    # Batch user_count and group_count in 2 aggregated queries
+    manageable = _manageable_company_memberships()
+    manageable_empresa_ids = [m.empresa_id for m in manageable]
+
+    user_counts: dict[int, int] = {}
+    group_counts: dict[int, int] = {}
+    if manageable_empresa_ids:
+        rows = (
+            db.session.query(
+                UserEmpresaRole.empresa_id,
+                db.func.count(UserEmpresaRole.id),
+            )
+            .filter(UserEmpresaRole.empresa_id.in_(manageable_empresa_ids))
+            .group_by(UserEmpresaRole.empresa_id)
+            .all()
+        )
+        user_counts = dict(rows)
+
+        rows = (
+            db.session.query(
+                SecurityGroup.empresa_id,
+                db.func.count(SecurityGroup.id),
+            )
+            .filter(SecurityGroup.empresa_id.in_(manageable_empresa_ids))
+            .group_by(SecurityGroup.empresa_id)
+            .all()
+        )
+        group_counts = dict(rows)
+
     company_rows = []
     for membership in sorted(
-        _manageable_company_memberships(),
+        manageable,
         key=lambda item: (item.empresa.razon_social.lower(), item.empresa_id),
     ):
         empresa = membership.empresa
@@ -191,8 +242,8 @@ def _render_dashboard(
             {
                 "empresa": empresa,
                 "membership": membership,
-                "user_count": UserEmpresaRole.query.filter_by(empresa_id=empresa.id).count(),
-                "group_count": SecurityGroup.query.filter_by(empresa_id=empresa.id).count(),
+                "user_count": user_counts.get(empresa.id, 0),
+                "group_count": group_counts.get(empresa.id, 0),
                 "is_current": empresa.id == empresa_id,
                 "is_default": current_user.default_empresa_id == empresa.id,
             }
