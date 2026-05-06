@@ -9,7 +9,7 @@ from openpyxl import Workbook
 
 from app.models import DocumentoCxC, DocumentoCxP, MovimientoTesoreria
 from app.services.accounting import statement_snapshot, trial_balance
-from app.services.inventory import as_decimal
+from app.utils.tax import as_decimal
 
 
 def aging_summary(empresa_id: int) -> dict:

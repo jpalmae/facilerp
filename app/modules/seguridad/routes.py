@@ -56,11 +56,20 @@ def _permission_catalog() -> list[dict[str, object]]:
 
 
 def _active_admin_count(empresa_id: int) -> int:
-    memberships = UserEmpresaRole.query.filter_by(
-        empresa_id=empresa_id,
-        rol=ROLE_ADMIN,
-    ).all()
-    return sum(1 for membership in memberships if membership.is_currently_active())
+    now = datetime.now(timezone.utc)
+    return (
+        db.session.query(db.func.count(UserEmpresaRole.id))
+        .filter(
+            UserEmpresaRole.empresa_id == empresa_id,
+            UserEmpresaRole.rol == ROLE_ADMIN,
+            UserEmpresaRole.activo.is_(True),
+            db.or_(
+                UserEmpresaRole.expires_at.is_(None),
+                UserEmpresaRole.expires_at >= now,
+            ),
+        )
+        .scalar()
+    ) or 0
 
 
 def _manageable_company_memberships() -> list[UserEmpresaRole]:

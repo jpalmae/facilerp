@@ -14,8 +14,10 @@ from app.models import (
     PedidoVentaLinea,
     Producto,
 )
+from app.constants import MOV_SALIDA, REF_DOCUMENTO_CXC, REF_PEDIDO_VENTA
 from app.services.accounting import create_journal_entry
-from app.services.inventory import InventoryError, as_decimal, register_stock_movement
+from app.services.inventory import InventoryError, register_stock_movement
+from app.utils.tax import as_decimal
 from app.services.purchases import build_purchase_totals
 from app.services.treasury import register_treasury_movement
 
@@ -69,9 +71,9 @@ def create_sales_order(
             empresa_id=empresa_id,
             producto=producto,
             almacen=almacen,
-            tipo="salida",
+            tipo=MOV_SALIDA,
             cantidad=cantidad,
-            referencia_tipo="pedido_venta",
+            referencia_tipo=REF_PEDIDO_VENTA,
             referencia_id=pedido.id,
             fecha=fecha,
         )
@@ -83,7 +85,7 @@ def create_sales_order(
         fecha=fecha,
         glosa=f"Venta PV-{pedido.id:04d} {cliente.razon_social}",
         tipo="automatico",
-        referencia_tipo="pedido_venta",
+        referencia_tipo=REF_PEDIDO_VENTA,
         referencia_id=pedido.id,
         lines=[
             {"cuenta": "1212", "debe": total},
@@ -133,7 +135,7 @@ def register_collection(
         fecha=fecha,
         glosa=f"Cobro cliente {documento.cliente.razon_social}",
         contra_cuenta_codigo="1212",
-        referencia_tipo="documento_cxc",
+        referencia_tipo=REF_DOCUMENTO_CXC,
         referencia_id=documento.id,
     )
     documento.monto_pendiente = pending - amount

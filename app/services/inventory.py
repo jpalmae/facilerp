@@ -14,7 +14,13 @@ class InventoryError(ValueError):
     pass
 
 
-from app.utils.tax import as_decimal, calc_totals_with_igv  # noqa: F401 – re-exported for backward compatibility
+from app.constants import (
+    MOV_ENTRADA,
+    MOV_RECEPCION_COMPRA,
+    MOV_SALIDA,
+    MOV_AJUSTE_SALIDA,
+)
+from app.utils.tax import as_decimal, calc_totals_with_igv
 
 
 def get_or_create_stock(producto_id: int, almacen_id: int) -> Stock:
@@ -63,10 +69,10 @@ def register_stock_movement(
     current_qty = as_decimal(stock.cantidad_disponible)
     current_avg_cost = as_decimal(producto.costo_promedio)
 
-    if tipo in {"salida", "ajuste_salida"} and current_qty < qty:
+    if tipo in {MOV_SALIDA, MOV_AJUSTE_SALIDA} and current_qty < qty:
         raise InventoryError("El stock no puede quedar negativo.")
 
-    if tipo in {"entrada", "recepcion_compra"}:
+    if tipo in {MOV_ENTRADA, MOV_RECEPCION_COMPRA}:
         new_qty = current_qty + qty
         if new_qty > Decimal("0.00"):
             weighted_cost = ((current_qty * current_avg_cost) + (qty * unit_cost)) / new_qty
@@ -74,7 +80,7 @@ def register_stock_movement(
                 TWOPLACES, rounding=ROUND_HALF_UP
             )
         stock.cantidad_disponible = new_qty
-    elif tipo in {"salida", "ajuste_salida"}:
+    elif tipo in {MOV_SALIDA, MOV_AJUSTE_SALIDA}:
         stock.cantidad_disponible = current_qty - qty
         unit_cost = current_avg_cost
     else:

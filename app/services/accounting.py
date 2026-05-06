@@ -8,7 +8,8 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models import Asiento, AsientoLinea, PeriodoContable, PlanCuenta
-from app.services.inventory import as_decimal
+from app.constants import REF_REVERSION_ASIENTO
+from app.utils.tax import as_decimal
 
 
 ACCOUNT_CATALOG = {
@@ -183,11 +184,12 @@ def statement_snapshot(empresa_id: int) -> dict:
             income["ingresos"] += -saldo
         elif row["tipo"] == "gasto":
             income["gastos"] += saldo
+    patrimonio = balance["activo"] + balance["pasivo"]  # pasivo ya es negativo
     return {
         "balance": {
             "activo": balance["activo"],
             "pasivo": -balance["pasivo"],
-            "patrimonio": balance["activo"] + balance["pasivo"],
+            "patrimonio": patrimonio,
         },
         "resultados": {
             "ingresos": income["ingresos"],
@@ -277,7 +279,7 @@ def reverse_entry(
         glosa=f"Reversión asiento {entry.numero}",
         tipo="automatico",
         created_by=created_by,
-        referencia_tipo="reversion_asiento",
+        referencia_tipo=REF_REVERSION_ASIENTO,
         referencia_id=entry.id,
         lines=[
             {

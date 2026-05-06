@@ -13,8 +13,10 @@ from app.models import (
     Recepcion,
     RecepcionLinea,
 )
+from app.constants import MOV_RECEPCION_COMPRA, REF_ORDEN_COMPRA, REF_RECEPCION_COMPRA
 from app.services.accounting import create_journal_entry
-from app.services.inventory import InventoryError, as_decimal, register_stock_movement
+from app.services.inventory import InventoryError, register_stock_movement
+from app.utils.tax import as_decimal
 from app.utils.tax import calc_totals_with_igv
 
 
@@ -156,11 +158,11 @@ def receive_purchase_order(
                 empresa_id=orden.empresa_id,
                 producto=linea.producto,
                 almacen=almacen,
-                tipo="recepcion_compra",
+                tipo=MOV_RECEPCION_COMPRA,
                 cantidad=qty,
                 costo_unitario=linea.precio_unitario,
                 fecha=fecha,
-                referencia_tipo="orden_compra",
+                referencia_tipo=REF_ORDEN_COMPRA,
                 referencia_id=orden.id,
             )
         except InventoryError as exc:
@@ -180,7 +182,7 @@ def receive_purchase_order(
         fecha=fecha,
         glosa=f"Recepción OC-{orden.id:04d} {orden.proveedor.razon_social}",
         tipo="automatico",
-        referencia_tipo="recepcion_compra",
+        referencia_tipo=REF_RECEPCION_COMPRA,
         referencia_id=recepcion.id,
         lines=[
             {"cuenta": "2011", "debe": total_subtotal},

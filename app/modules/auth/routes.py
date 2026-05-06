@@ -21,6 +21,14 @@ def login():
         result = authenticate_credentials(form.email.data, form.password.data)
         if not result.success or not result.user:
             flash(result.message or "Credenciales inválidas.", "error")
+            db.session.add(
+                AuditLog(
+                    accion="login_failed",
+                    detalle=form.email.data,
+                    ip=request.remote_addr,
+                )
+            )
+            db.session.commit()
         else:
             user = result.user
             empresa_preferida = user.preferred_empresa()

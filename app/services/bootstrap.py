@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from app.constants import MOV_ENTRADA
 from app.extensions import db
 from app.models import (
     Almacen,
@@ -373,7 +374,7 @@ def ensure_demo_data() -> None:
         empresa_id=empresa_principal.id,
         producto=producto_b,
         almacen=almacen_principal,
-        tipo="entrada",
+        tipo=MOV_ENTRADA,
         cantidad=Decimal("25.00"),
         costo_unitario=Decimal("45.00"),
     )

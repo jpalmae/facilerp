@@ -7,9 +7,10 @@ from io import StringIO
 
 from app.extensions import db
 from app.models import CuentaTesoreria, DocumentoCxP, MovimientoTesoreria, Pago, TipoCambio
+from app.constants import REF_DOCUMENTO_CXP, REF_TRANSFERENCIA_TESORERIA
 from app.services.external import fetch_exchange_rate
 from app.services.accounting import create_journal_entry, get_account
-from app.services.inventory import as_decimal
+from app.utils.tax import as_decimal
 
 
 class TreasuryError(ValueError):
@@ -137,7 +138,7 @@ def register_supplier_payment(
         fecha=fecha,
         glosa=f"Pago proveedor {documento.proveedor.razon_social}",
         contra_cuenta_codigo="4212",
-        referencia_tipo="documento_cxp",
+        referencia_tipo=REF_DOCUMENTO_CXP,
         referencia_id=documento.id,
         created_by=created_by,
     )
@@ -199,7 +200,7 @@ def transfer_between_accounts(
         glosa=f"Transferencia {source.nombre} -> {destination.nombre}",
         tipo="automatico",
         created_by=created_by,
-        referencia_tipo="transferencia_tesoreria",
+        referencia_tipo=REF_TRANSFERENCIA_TESORERIA,
         lines=[
             {"cuenta": destination.cuenta_contable, "debe": amount},
             {"cuenta": source.cuenta_contable, "haber": amount},
@@ -212,7 +213,7 @@ def transfer_between_accounts(
         monto=amount,
         fecha=fecha,
         glosa=f"Transferencia a {destination.nombre}",
-        referencia_tipo="transferencia_tesoreria",
+        referencia_tipo=REF_TRANSFERENCIA_TESORERIA,
         referencia_id=entry.id,
         asiento_id=entry.id,
         conciliado=True,
@@ -224,7 +225,7 @@ def transfer_between_accounts(
         monto=amount,
         fecha=fecha,
         glosa=f"Transferencia desde {source.nombre}",
-        referencia_tipo="transferencia_tesoreria",
+        referencia_tipo=REF_TRANSFERENCIA_TESORERIA,
         referencia_id=entry.id,
         asiento_id=entry.id,
         conciliado=True,

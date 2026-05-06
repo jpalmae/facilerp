@@ -120,6 +120,15 @@ class MovimientoStock(TimestampMixin, db.Model):
     producto = db.relationship("Producto", back_populates="movimientos")
     almacen = db.relationship("Almacen", back_populates="movimientos")
 
+    __table_args__ = (
+        db.Index(
+            "ix_movimientos_empresa_referencia",
+            "empresa_id",
+            "referencia_tipo",
+            "referencia_id",
+        ),
+    )
+
 
 class Proveedor(TimestampMixin, db.Model):
     __tablename__ = "proveedores"
